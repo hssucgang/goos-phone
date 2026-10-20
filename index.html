@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<!-- GOOS-PHONE-APP -->
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F2A4A">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>GOOS</title>
+<style>
+:root{--cream:#FAF5EA;--navy:#1F2A4A;--peri:#8C9BE0;--wheat:#E0B54A;--ok:#256B45;
+ --warn:#8F6111;--fail:#9E2E2E;--line:#D8CFBB;--card:#fff;--muted:#5E6C89}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--cream);color:var(--navy);overflow-x:hidden;
+ font:16px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select{font:inherit}
+header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;
+ padding:12px 14px calc(10px) 14px;display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .back{background:none;border:0;color:#fff;font-size:22px;padding:0 6px 0 0}
+header .rf{background:var(--wheat);color:var(--navy);border:0;border-radius:18px;
+ padding:6px 12px;font-weight:700;font-size:14px}
+main{padding:12px 12px 90px;max-width:760px;margin:0 auto}
+.stamp{color:var(--muted);font-size:12px;margin:2px 2px 10px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.kpi b{display:block;font-size:24px;line-height:1.1;overflow-wrap:anywhere}
+.kpi span{color:var(--muted);font-size:13px}
+.kpi.warn b{color:var(--warn)} .kpi.bad b{color:var(--fail)} .kpi.go{cursor:pointer}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.row.tap{cursor:pointer}
+.row .t{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.row .t span:first-child{min-width:0;overflow-wrap:anywhere}
+.row .s{color:var(--muted);font-size:13px;margin-top:2px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700;
+ background:#EEF0FA;color:var(--navy)}
+.pill.ok{background:#E3F1E8;color:var(--ok)} .pill.warn{background:#FBF0D9;color:var(--warn)}
+.pill.bad{background:#F7E1E1;color:var(--fail)}
+.search{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;
+ background:#fff;margin-bottom:10px}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 12px;
+ font-size:14px;white-space:nowrap}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.sum{background:var(--navy);color:#fff;border-radius:14px;padding:12px;margin-bottom:10px}
+.sum b{font-size:22px}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
+ display:flex;overflow-x:auto;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1 0 auto;min-width:76px;background:none;border:0;padding:6px 4px;
+ font-size:12px;color:var(--muted);border-radius:10px}
+nav button.on{background:#EEF0FA;color:var(--navy);font-weight:700}
+.login{max-width:380px;margin:12vh auto 0;padding:0 18px}
+.login h2{margin:0 0 4px;font-size:28px} .login p{color:var(--muted);margin:0 0 18px}
+.login input{width:100%;padding:13px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:#fff}
+.btn{width:100%;padding:13px;border:0;border-radius:12px;background:var(--navy);color:#fff;font-weight:700}
+.btn.ghost{background:#fff;color:var(--navy);border:1px solid var(--line);margin-top:14px}
+.err{color:var(--fail);min-height:22px;margin:8px 0}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+.det td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+.det{width:100%;border-collapse:collapse;background:#fff;border-radius:12px}
+.num{text-align:right;white-space:nowrap}
+.foot{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
+a.tel{color:var(--navy)}
+</style>
+</head><body>
+<div id="app"></div>
+<script>
+'use strict';
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.92.1'};
+var VIEWS = {
+  dashboard: 'Home', orders: 'Orders', collections: 'Collections',
+  customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
+  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval'
+};
+var S = {token: '', name: '', views: [], view: 'dashboard', arg: '', data: null,
+         at: '', q: '', filter: '', busy: false};
+function $(id) { return document.getElementById(id); }
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+function peso(n) {
+  n = Number(n || 0);
+  return '\u20B1' + n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function pesoShort(n) {
+  /* a card holds a headline, not a ledger line - the full figure is one tap away */
+  n = Number(n || 0);
+  var a = Math.abs(n);
+  if (a >= 1e6) return '\u20B1' + (n / 1e6).toFixed(2) + 'M';
+  if (a >= 1e4) return '\u20B1' + (n / 1e3).toFixed(1) + 'K';
+  return peso(n);
+}
+function num(n) {
+  n = Number(n || 0);
+  return n.toLocaleString('en-PH', {maximumFractionDigits: 2});
+}
+function save() {
+  try { localStorage.setItem('goos_phone', JSON.stringify({token: S.token, name: S.name, views: S.views})); }
+  catch (e) {}
+}
+function load() {
+  try {
+    var v = JSON.parse(localStorage.getItem('goos_phone') || '{}');
+    S.token = v.token || ''; S.name = v.name || ''; S.views = v.views || [];
+  } catch (e) {}
+}
+async function rpc(fn, body) {
+  var h = {'Content-Type': 'application/json', 'apikey': CFG.key};
+  if (/^eyJ/.test(CFG.key)) h['Authorization'] = 'Bearer ' + CFG.key;
+  var r = await fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn,
+                      {method: 'POST', headers: h, body: JSON.stringify(body)});
+  if (!r.ok) throw new Error('The server said ' + r.status + '.');
+  return r.json();
+}
+async function pbkdf2Hex(password, saltHex) {
+  var enc = new TextEncoder();
+  var salt = new Uint8Array(saltHex.match(/../g).map(function (h) { return parseInt(h, 16); }));
+  var key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits({name: 'PBKDF2', hash: 'SHA-256', salt: salt, iterations: 100000}, key, 256);
+  return Array.prototype.map.call(new Uint8Array(bits), function (b) {
+    return ('0' + b.toString(16)).slice(-2);
+  }).join('');
+}
+
+/* ---------------------------------------------------------------- sign in */
+function drawLogin(msg) {
+  $('app').innerHTML =
+    '<div class="login"><h2>GOOS</h2><p>Grain Ola - view only. Changes are made in GOOS on the laptops.</p>' +
+    '<input id="u" autocomplete="username" placeholder="Username" autocapitalize="none">' +
+    '<input id="p" type="password" autocomplete="current-password" placeholder="Password">' +
+    '<div class="err" id="err">' + esc(msg || '') + '</div>' +
+    '<button class="btn" id="go">Sign in</button>' +
+    '<div class="foot">App ' + esc(CFG.version) + '</div></div>';
+  $('go').onclick = signIn;
+  $('p').onkeydown = function (e) { if (e.key === 'Enter') signIn(); };
+}
+async function signIn() {
+  var u = $('u').value.trim(), p = $('p').value;
+  if (!u || !p) { $('err').textContent = 'Enter your username and password.'; return; }
+  $('go').disabled = true; $('err').textContent = 'Signing in...';
+  try {
+    var salt = await rpc('goos_m_salt', {p_user: u});
+    var h = await pbkdf2Hex(p, String(salt));
+    var r = await rpc('goos_m_login', {p_user: u, p_hash: h});
+    if (!r.ok) { $('err').textContent = r.error; $('go').disabled = false; return; }
+    S.token = r.token; S.name = r.name; S.views = r.views; save();
+    go('dashboard');
+  } catch (e) {
+    $('err').textContent = 'Could not reach GOOS. Check the internet and try again.';
+    $('go').disabled = false;
+  }
+}
+async function signOut() {
+  try { await rpc('goos_m_logout', {p_token: S.token}); } catch (e) {}
+  S.token = ''; save(); drawLogin('');
+}
+
+/* ------------------------------------------------------------------ data */
+async function go(view, arg) {
+  S.view = view; S.arg = arg || ''; S.q = ''; S.filter = '';
+  S.data = null; draw(); await refresh();
+}
+async function refresh() {
+  if (S.busy) return;
+  S.busy = true; drawHead();
+  try {
+    var r = await rpc('goos_m_data', {p_token: S.token, p_view: S.view, p_arg: S.arg});
+    if (!r.ok) {
+      if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+      S.data = {error: r.error};
+    } else {
+      S.data = r.data; S.at = r.at;
+      if (S.view === 'dashboard' && r.data && r.data.views) { S.views = r.data.views; save(); }
+    }
+  } catch (e) {
+    S.data = S.data || {error: 'Could not reach GOOS. Check the internet, then press Refresh.'};
+  } finally {
+    S.busy = false;
+  }
+  draw();
+}
+
+/* ---------------------------------------------------------------- screens */
+function drawHead() {
+  var b = $('rf'); if (b) b.textContent = S.busy ? '...' : 'Refresh';
+}
+function draw() {
+  var title = S.arg ? 'Order' : VIEWS[S.view];
+  var html = '<header>' + (S.arg ? '<button class="back" id="back">&lsaquo;</button>' : '') +
+    '<h1>' + esc(title) + '</h1><button class="rf" id="rf">' + (S.busy ? '...' : 'Refresh') + '</button></header><main>';
+  if (S.at) html += '<div class="stamp">Updated ' + esc(S.at) + '</div>';
+  var d = S.data;
+  if (!d) html += '<div class="empty">Loading...</div>';
+  else if (d.error) html += '<div class="empty">' + esc(d.error) + '</div>';
+  else html += (SCREENS[S.view] || function () { return ''; })(d);
+  html += '</main><nav>' + S.views.map(function (v) {
+    return '<button data-v="' + v + '" class="' + (v === S.view && !S.arg ? 'on' : '') + '">' + esc(VIEWS[v] || v) + '</button>';
+  }).join('') + '<button data-v="__out">Sign out</button></nav>';
+  $('app').innerHTML = html;
+  $('rf').onclick = refresh;
+  if ($('back')) $('back').onclick = function () { go(S.view); };
+  Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
+    b.onclick = function () { b.dataset.v === '__out' ? signOut() : go(b.dataset.v); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-go]'), function (el) {
+    el.onclick = function () {
+      var p = el.dataset.go.split(':');
+      if (S.views.indexOf(p[0]) >= 0) go(p[0], p[1] || '');
+    };
+  });
+  var s = $('q');
+  if (s) {
+    s.value = S.q;
+    s.oninput = function () { S.q = s.value; var pos = s.selectionStart; draw(); var n = $('q'); n.focus(); n.setSelectionRange(pos, pos); };
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
+    c.onclick = function () { S.filter = c.dataset.f; draw(); };
+  });
+}
+function search(ph) { return '<input id="q" class="search" placeholder="' + esc(ph) + '">'; }
+function hit(o, keys) {
+  var q = S.q.trim().toLowerCase(); if (!q) return true;
+  return keys.some(function (k) { return String(o[k] || '').toLowerCase().indexOf(q) >= 0; });
+}
+function chips(list) {
+  return '<div class="chips">' + list.map(function (c) {
+    return '<button class="chip ' + (S.filter === c[0] ? 'on' : '') + '" data-f="' + c[0] + '">' + esc(c[1]) + '</button>';
+  }).join('') + '</div>';
+}
+function rows(items, fn) {
+  if (!items.length) return '<div class="empty">Nothing to show.</div>';
+  var more = items.length > 300 ? '<div class="empty">Showing the first 300 - search to narrow down.</div>' : '';
+  return '<div class="list">' + items.slice(0, 300).map(fn).join('') + '</div>' + more;
+}
+var STATE = {'new': ['Draft', ''], confirmed: ['Confirmed', 'warn'], dispatched: ['Dispatched', 'ok'],
+             recorded: ['Recorded', 'ok'], cancelled: ['Cancelled', 'bad']};
+function kpi(v, label, cls, link) {
+  return '<div class="kpi ' + (cls || '') + (link ? ' go' : '') + '"' + (link ? ' data-go="' + link + '"' : '') +
+         '><b>' + v + '</b><span>' + esc(label) + '</span></div>';
+}
+var SCREENS = {
+  dashboard: function (d) {
+    return '<p style="margin:0 0 10px">Hello, <b>' + esc(d.name) + '</b></p><div class="grid">' +
+      kpi(d.deliveries_today, 'Deliveries today', '', 'orders') +
+      kpi(d.orders_confirmed, 'Confirmed, waiting to dispatch', d.orders_confirmed ? 'warn' : '', 'orders') +
+      kpi(d.orders_new, 'Orders still in Drafts', '', 'orders') +
+      kpi(pesoShort(d.sales_month), 'Sales this month', '', '') +
+      kpi(pesoShort(d.owed), d.owed_count + ' unpaid deliveries', d.owed > 0 ? 'warn' : '', 'collections') +
+      kpi(d.approvals, 'Waiting for approval', d.approvals ? 'warn' : '', 'approvals') +
+      kpi(d.raw_low, 'Materials at reorder level', d.raw_low ? 'bad' : '', 'raw') +
+      kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
+      kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
+      kpi(d.qa_open, 'Batches still being checked', '', 'qa') + '</div>' +
+      '<div class="foot">View only - changes are made in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
+  },
+  orders: function (d) {
+    if (S.arg) return orderDetail(d);
+    var f = S.filter;
+    var list = d.filter(function (o) {
+      return (!f || o.state === f || (f === 'unpaid' && (o.state === 'dispatched' || o.state === 'recorded') && o.total - o.paid > 0.009)) &&
+             hit(o, ['reference', 'customer_name']);
+    });
+    return search('Search order or customer') +
+      chips([['', 'All'], ['new', 'Drafts'], ['confirmed', 'Confirmed'], ['dispatched', 'Dispatched'], ['unpaid', 'Unpaid']]) +
+      rows(list, function (o) {
+        var st = STATE[o.state] || [o.state, ''];
+        return '<div class="row tap" data-go="orders:' + o.id + '"><div class="t"><span>' + esc(o.customer_name) +
+          '</span><span>' + peso(o.total) + '</span></div><div class="s"><span>' + esc(o.reference) + ' &middot; ' + esc(o.day) +
+          '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div></div>';
+      });
+  },
+  collections: function (d) {
+    var list = d.filter(function (o) { return hit(o, ['customer_name', 'reference', 'agent']); });
+    var tot = list.reduce(function (a, o) { return a + Number(o.owed); }, 0);
+    var over = list.filter(function (o) { return o.age > 30; }).reduce(function (a, o) { return a + Number(o.owed); }, 0);
+    return '<div class="sum">Still owed<br><b>' + peso(tot) + '</b><br><span style="font-size:13px">over 30 days: ' + peso(over) + '</span></div>' +
+      search('Search customer, order or agent') + rows(list, function (o) {
+        var cls = o.age > 90 ? 'bad' : (o.age > 30 ? 'warn' : '');
+        return '<div class="row tap" data-go="orders:' + o.id + '"><div class="t"><span>' + esc(o.customer_name) + '</span><span>' + peso(o.owed) +
+          '</span></div><div class="s"><span>' + esc(o.reference) + ' &middot; ' + esc(o.agent) + '</span><span class="pill ' + cls + '">' + o.age + ' days</span></div></div>';
+      });
+  },
+  customers: function (d) {
+    return search('Search name, city or agent') + rows(d.filter(function (c) { return hit(c, ['name', 'city', 'agent', 'contact']); }), function (c) {
+      var tel = String(c.mobile || '').replace(/[^0-9+]/g, '');
+      return '<div class="row"><div class="t"><span>' + esc(c.name) + '</span><span>' + esc(c.day) + '</span></div><div class="s"><span>' +
+        esc([c.city, c.agent, c.contact].filter(Boolean).join(' \u00b7 ')) + '</span>' +
+        (tel ? '<a class="tel" href="tel:' + esc(tel) + '">' + esc(c.mobile) + '</a>' : '') + '</div></div>';
+    });
+  },
+  finished: function (d) {
+    var f = S.filter;
+    var list = d.filter(function (x) { return (!f || (f === 'out' && x.stock <= 0) || (f === 'low' && x.par > 0 && x.stock <= x.par)) && hit(x, ['name']); });
+    return search('Search product') + chips([['', 'All'], ['low', 'At or below par'], ['out', 'Out of stock']]) + rows(list, function (x) {
+      var cls = x.stock <= 0 ? 'bad' : (x.par > 0 && x.stock <= x.par ? 'warn' : 'ok');
+      return '<div class="row"><div class="t"><span>' + esc(x.name) + '</span><span class="pill ' + cls + '">' + num(x.stock) + ' ' + esc(x.unit) +
+        '</span></div>' + (x.par ? '<div class="s"><span>par ' + num(x.par) + '</span></div>' : '') + '</div>';
+    });
+  },
+  raw: function (d) {
+    var f = S.filter;
+    var list = d.filter(function (x) { return (!f || x.low) && hit(x, ['name', 'category', 'supplier']); });
+    return search('Search material, category or supplier') + chips([['', 'All'], ['low', 'At reorder level']]) + rows(list, function (x) {
+      return '<div class="row"><div class="t"><span>' + esc(x.name) + '</span><span class="pill ' + (x.low ? 'bad' : 'ok') + '">' + num(x.stock) + ' ' + esc(x.unit) +
+        '</span></div><div class="s"><span>' + esc([x.category, x.supplier].filter(Boolean).join(' \u00b7 ')) + '</span><span>' +
+        (x.reorder ? 'reorder at ' + num(x.reorder) : '') + '</span></div></div>';
+    });
+  },
+  lots: function (d) {
+    var today = new Date().toISOString().slice(0, 10);
+    var soon = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    var f = S.filter;
+    var list = d.filter(function (x) {
+      var exp = x.expires || '';
+      return (!f || (f === 'soon' && exp && exp <= soon) || (f === 'hold' && /hold|reject/i.test(x.qa))) && hit(x, ['lot', 'product']);
+    });
+    return search('Search LOT or product') + chips([['', 'All'], ['soon', 'Expiring in 30 days'], ['hold', 'On hold']]) + rows(list, function (x) {
+      var exp = x.expires || '';
+      var cls = exp && exp < today ? 'bad' : (exp && exp <= soon ? 'warn' : 'ok');
+      return '<div class="row"><div class="t"><span>' + esc(x.lot) + '</span><span>' + num(x.left_qty) + ' left</span></div><div class="s"><span>' +
+        esc(x.product) + '</span><span class="pill ' + cls + '">' + (exp ? 'exp ' + esc(exp) : 'no expiry') + '</span>' +
+        (x.qa ? '<span class="pill ' + (/release/i.test(x.qa) ? 'ok' : 'warn') + '">' + esc(x.qa) + '</span>' : '') + '</div></div>';
+    });
+  },
+  qa: function (d) {
+    var f = S.filter;
+    var list = d.filter(function (x) { return (!f || !x.done) && hit(x, ['lot', 'product', 'qa_by']); });
+    return search('Search LOT or product') + chips([['', 'All'], ['open', 'Still being checked']]) + rows(list, function (x) {
+      return '<div class="row"><div class="t"><span>' + esc(x.product) + '</span><span class="pill ' + (x.done ? 'ok' : 'warn') + '">' +
+        (x.done ? 'Done' : 'Open') + '</span></div><div class="s"><span>LOT ' + esc(x.lot) + ' &middot; ' + esc(String(x.day || '').slice(0, 10)) +
+        '</span><span>Brix ' + esc(x.brix || '-') + ' &middot; pH ' + esc(x.ph || '-') + '</span></div></div>';
+    });
+  },
+  approvals: function (d) {
+    return '<p class="stamp">Approve these in GOOS on a laptop - the phone is view only.</p>' + rows(d, function (x) {
+      return '<div class="row"><div class="t"><span>' + esc(x.what) + '</span><span class="pill warn">' + esc(x.kind) + '</span></div><div class="s"><span>' +
+        esc(x.detail) + '</span><span>' + esc(x.who || '') + ' &middot; ' + esc(String(x.at || '').slice(0, 16)) + '</span></div></div>';
+    });
+  }
+};
+function orderDetail(d) {
+  var o = d.order;
+  if (!o) return '<div class="empty">That order is no longer there.</div>';
+  var st = STATE[o.state] || [o.state, ''];
+  var owed = Number(o.total) - Number(o.paid);
+  return '<div class="sum">' + esc(o.customer_name) + '<br><b>' + peso(o.total) + '</b><br><span style="font-size:13px">' + esc(o.reference) +
+    ' &middot; ' + esc(st[0]) + (owed > 0.009 && (o.state === 'dispatched' || o.state === 'recorded') ? ' &middot; owes ' + peso(owed) : '') + '</span></div>' +
+    '<table class="det">' +
+    [['Order date', o.order_date], ['Delivery', o.delivery_date], ['Payment', o.payment_method], ['SI / DR', [o.si_no, o.dr_no].filter(Boolean).join(' / ')],
+     ['Taken by', o.taken_by], ['Notes', o.notes]].filter(function (r) { return r[1]; }).map(function (r) {
+       return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>';
+     }).join('') + '</table><h3 style="margin:16px 2px 8px">Items</h3>' +
+    rows(d.lines, function (l) {
+      return '<div class="row"><div class="t"><span>' + esc(l.item_name) + '</span><span>' + peso(l.amount) + '</span></div><div class="s"><span>' +
+        num(l.qty) + ' x ' + peso(l.price) + '</span></div></div>';
+    }) + (d.lots && d.lots.length ? '<h3 style="margin:16px 2px 8px">LOTs sent</h3>' + rows(d.lots, function (m) {
+      return '<div class="row"><div class="t"><span>LOT ' + esc(m.lot || '(no code)') + '</span><span>' + num(m.qty) + '</span></div></div>';
+    }) : '');
+}
+
+/* ------------------------------------------------------------------ start */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+}
+load();
+if (S.token) go('dashboard'); else drawLogin('');
+</script>
+</body></html>

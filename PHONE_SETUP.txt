@@ -1,0 +1,28 @@
+PUTTING GOOS ON AN ANDROID PHONE (view only)
+
+ONE TIME - publish the app (about 10 minutes)
+ 1. Go to github.com and sign in (or create a free account).
+ 2. Click + (top right) > New repository. Name it goos-phone.
+    Choose Public. Click Create repository.
+ 3. Click "uploading an existing file". Drag in EVERY file from this
+    folder (index.html, manifest.json, sw.js, the two icons).
+    Click Commit changes.
+ 4. Settings > Pages. Under Branch choose "main" and "/ (root)". Save.
+ 5. Wait 1-2 minutes. The page shows the address, like
+    https://YOURNAME.github.io/goos-phone/
+
+ON EACH PHONE
+ 1. Open that address in Chrome.
+ 2. Sign in with the person's normal GOOS username and password.
+ 3. Chrome menu (three dots) > Add to Home screen > Install.
+
+WHAT EACH PERSON SEES
+ Only the GOOS tabs they are allowed on the laptop. The CEO sees all.
+ Five wrong passwords lock that user out of the phone for 15 minutes.
+ Changing a password in GOOS signs that person out of every phone.
+
+WHEN GOOS IS UPDATED
+ Run Phone App again in GOOS and upload the new files the same way
+ (Add file > Upload files, replace). Nothing to do on the phones.
+
+The address is public but shows nothing without a GOOS sign-in.
