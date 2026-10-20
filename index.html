@@ -62,19 +62,39 @@ nav button.on{background:#EEF0FA;color:var(--navy);font-weight:700}
 .num{text-align:right;white-space:nowrap}
 .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
 a.tel{color:var(--navy)}
+.ck{width:22px;height:22px;flex:0 0 auto;margin:2px 10px 0 0;accent-color:var(--navy)}
+.arow{display:flex;align-items:flex-start}
+.arow .body{flex:1;min-width:0}
+.prev{margin:6px 0 0;padding:0 0 0 2px;font-size:13px;color:var(--navy)}
+.prev div{margin:2px 0}
+.prob{color:var(--fail);font-weight:600}
+.banner{border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px;background:#EEF0FA}
+.banner.warn{background:#FBF0D9;color:var(--warn)}
+.actbar{position:fixed;left:0;right:0;bottom:58px;padding:8px 12px;display:flex;gap:8px;
+ background:rgba(250,245,234,.96);border-top:1px solid var(--line);z-index:6}
+.actbar button{flex:1;padding:12px;border-radius:12px;border:0;font-weight:700;color:#fff;background:var(--ok)}
+.actbar button.rej{background:var(--fail)}
+#sheet{position:fixed;inset:0;background:rgba(31,42,74,.45);z-index:20;display:none;align-items:flex-end}
+#sheet.on{display:flex}
+#sheet .box{background:var(--cream);width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;
+ padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+#sheet h2{margin:0 0 6px;font-size:20px}
+#sheet input,#sheet textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;margin:4px 0 8px;background:#fff}
+#sheet label{font-size:13px;color:var(--muted)}
+#sheet .two{display:flex;gap:8px} #sheet .two .btn{flex:1}
 </style>
 </head><body>
-<div id="app"></div>
+<div id="app"></div><div id="sheet"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.92.1'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.93.0'};
 var VIEWS = {
   dashboard: 'Home', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
   raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval'
 };
-var S = {token: '', name: '', views: [], view: 'dashboard', arg: '', data: null,
-         at: '', q: '', filter: '', busy: false};
+var S = {token: '', name: '', user: '', views: [], view: 'dashboard', arg: '', data: null,
+         at: '', q: '', filter: '', busy: false, sel: {}, poll: 0};
 function $(id) { return document.getElementById(id); }
 function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -98,13 +118,13 @@ function num(n) {
   return n.toLocaleString('en-PH', {maximumFractionDigits: 2});
 }
 function save() {
-  try { localStorage.setItem('goos_phone', JSON.stringify({token: S.token, name: S.name, views: S.views})); }
+  try { localStorage.setItem('goos_phone', JSON.stringify({token: S.token, name: S.name, user: S.user, views: S.views})); }
   catch (e) {}
 }
 function load() {
   try {
     var v = JSON.parse(localStorage.getItem('goos_phone') || '{}');
-    S.token = v.token || ''; S.name = v.name || ''; S.views = v.views || [];
+    S.token = v.token || ''; S.name = v.name || ''; S.user = v.user || ''; S.views = v.views || [];
   } catch (e) {}
 }
 async function rpc(fn, body) {
@@ -128,7 +148,7 @@ async function pbkdf2Hex(password, saltHex) {
 /* ---------------------------------------------------------------- sign in */
 function drawLogin(msg) {
   $('app').innerHTML =
-    '<div class="login"><h2>GOOS</h2><p>Grain Ola - view only. Changes are made in GOOS on the laptops.</p>' +
+    '<div class="login"><h2>GOOS</h2><p>Grain Ola. Approvals can be signed here; everything else is changed in GOOS on the laptops.</p>' +
     '<input id="u" autocomplete="username" placeholder="Username" autocapitalize="none">' +
     '<input id="p" type="password" autocomplete="current-password" placeholder="Password">' +
     '<div class="err" id="err">' + esc(msg || '') + '</div>' +
@@ -146,7 +166,7 @@ async function signIn() {
     var h = await pbkdf2Hex(p, String(salt));
     var r = await rpc('goos_m_login', {p_user: u, p_hash: h});
     if (!r.ok) { $('err').textContent = r.error; $('go').disabled = false; return; }
-    S.token = r.token; S.name = r.name; S.views = r.views; save();
+    S.token = r.token; S.name = r.name; S.user = u; S.views = r.views; save();
     go('dashboard');
   } catch (e) {
     $('err').textContent = 'Could not reach GOOS. Check the internet and try again.';
@@ -160,7 +180,7 @@ async function signOut() {
 
 /* ------------------------------------------------------------------ data */
 async function go(view, arg) {
-  S.view = view; S.arg = arg || ''; S.q = ''; S.filter = '';
+  S.view = view; S.arg = arg || ''; S.q = ''; S.filter = ''; S.sel = {};
   S.data = null; draw(); await refresh();
 }
 async function refresh() {
@@ -173,7 +193,9 @@ async function refresh() {
       S.data = {error: r.error};
     } else {
       S.data = r.data; S.at = r.at;
-      if (S.view === 'dashboard' && r.data && r.data.views) { S.views = r.data.views; save(); }
+      if (S.view === 'dashboard' && r.data && r.data.views) {
+        S.views = r.data.views; if (r.data.user) S.user = r.data.user; save();
+      }
     }
   } catch (e) {
     S.data = S.data || {error: 'Could not reach GOOS. Check the internet, then press Refresh.'};
@@ -219,6 +241,14 @@ function draw() {
   Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
     c.onclick = function () { S.filter = c.dataset.f; draw(); };
   });
+  Array.prototype.forEach.call(document.querySelectorAll('.ck'), function (c) {
+    c.onchange = function () {
+      if (c.checked) S.sel[c.dataset.k] = 1; else delete S.sel[c.dataset.k];
+      draw();
+    };
+  });
+  if ($('do-ok')) $('do-ok').onclick = function () { openSign('approve'); };
+  if ($('do-no')) $('do-no').onclick = function () { openSign('reject'); };
 }
 function search(ph) { return '<input id="q" class="search" placeholder="' + esc(ph) + '">'; }
 function hit(o, keys) {
@@ -254,7 +284,7 @@ var SCREENS = {
       kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
       kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
       kpi(d.qa_open, 'Batches still being checked', '', 'qa') + '</div>' +
-      '<div class="foot">View only - changes are made in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
+      '<div class="foot">Approvals can be signed on the phone; everything else is changed in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
   },
   orders: function (d) {
     if (S.arg) return orderDetail(d);
@@ -334,12 +364,7 @@ var SCREENS = {
         '</span><span>Brix ' + esc(x.brix || '-') + ' &middot; pH ' + esc(x.ph || '-') + '</span></div></div>';
     });
   },
-  approvals: function (d) {
-    return '<p class="stamp">Approve these in GOOS on a laptop - the phone is view only.</p>' + rows(d, function (x) {
-      return '<div class="row"><div class="t"><span>' + esc(x.what) + '</span><span class="pill warn">' + esc(x.kind) + '</span></div><div class="s"><span>' +
-        esc(x.detail) + '</span><span>' + esc(x.who || '') + ' &middot; ' + esc(String(x.at || '').slice(0, 16)) + '</span></div></div>';
-    });
-  }
+  approvals: function (d) { return approvalsScreen(d); }
 };
 function orderDetail(d) {
   var o = d.order;
@@ -359,6 +384,130 @@ function orderDetail(d) {
     }) + (d.lots && d.lots.length ? '<h3 style="margin:16px 2px 8px">LOTs sent</h3>' + rows(d.lots, function (m) {
       return '<div class="row"><div class="t"><span>LOT ' + esc(m.lot || '(no code)') + '</span><span>' + num(m.qty) + '</span></div></div>';
     }) : '');
+}
+
+/* ------------------------------------------------------------ approvals */
+var KIND = {adj: 'Count adjustment', repack: 'Repack', srr: 'Sample / retainer'};
+var DSTAT = {queued: ['Waiting for a laptop', 'warn'], working: ['Being carried out', 'warn'],
+             done: ['Done', 'ok'], failed: ['Not done', 'bad']};
+function approvalsScreen(d) {
+  var f = S.filter, items = d.items || [];
+  var list = items.filter(function (x) { return (!f || x.kind === f) && hit(x, ['what', 'detail', 'who', 'remarks', 'title']); });
+  var html = '';
+  if (!d.laptops) {
+    html += '<div class="banner warn">No GOOS laptop is open right now. What you sign is kept safely and carried out as soon as one opens.</div>';
+  }
+  if (!d.can_sign) {
+    html += '<div class="banner">Only QA or the owner can sign these. You can see what is waiting.</div>';
+  }
+  html += search('Search product, LOT or person') +
+    chips([['', 'All'], ['adj', 'Count adjustments'], ['repack', 'Repacks'], ['srr', 'Samples / retainers']]);
+  html += rows(list, function (x) {
+    var k = x.kind + ':' + x.id;
+    var canTick = d.can_sign && !x.mine && !x.sent;
+    var lines = String(x.lines || '').split('\n').filter(Boolean);
+    var probs = String(x.problems || '').split('\n').filter(Boolean);
+    var state = x.sent ? '<span class="pill warn">Signed - waiting for a laptop</span>' :
+                (x.mine ? '<span class="pill">Your entry - someone else signs</span>' : '');
+    return '<div class="row"><div class="arow">' +
+      (canTick ? '<input type="checkbox" class="ck" data-k="' + esc(k) + '"' + (S.sel[k] ? ' checked' : '') + '>' : '') +
+      '<div class="body"><div class="t"><span>' + esc(x.what) + '</span><span class="pill warn">' + esc(x.label) + '</span></div>' +
+      '<div class="s"><span>' + esc(x.detail) + '</span></div>' +
+      (x.remarks ? '<div class="s"><span>Note: ' + esc(x.remarks) + '</span></div>' : '') +
+      (lines.length || probs.length ? '<div class="prev">' +
+        lines.map(function (l) { return '<div>\u2022 ' + esc(l) + '</div>'; }).join('') +
+        probs.map(function (l) { return '<div class="prob">Cannot approve: ' + esc(l) + '</div>'; }).join('') + '</div>'
+        : '<div class="s"><span>Details of what it will do appear once a GOOS laptop is open.</span></div>') +
+      '<div class="s"><span>by ' + esc(x.who || '-') + ' &middot; ' + esc(String(x.at || '').slice(0, 16)) + '</span>' + state + '</div>' +
+      '</div></div></div>';
+  });
+  var dec = d.decisions || [];
+  if (dec.length) {
+    html += '<h3 style="margin:18px 2px 8px">Your recent decisions</h3><div class="list">' + dec.map(function (x) {
+      var st = DSTAT[x.status] || [x.status, ''];
+      return '<div class="row"><div class="t"><span>' + (x.action === 'approve' ? 'Approve' : 'Reject') + ' ' +
+        esc(KIND[x.kind] || x.kind) + ' #' + esc(x.ref_id) + '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div>' +
+        '<div class="s"><span>' + esc(x.result || '') + '</span><span>' + esc(x.at) + '</span></div></div>';
+    }).join('') + '</div>';
+  }
+  var n = Object.keys(S.sel).length;
+  if (n) {
+    html += '<div class="actbar"><button id="do-no" class="rej">Reject (' + n + ')</button>' +
+            '<button id="do-ok">Approve (' + n + ')</button></div>';
+  }
+  return html;
+}
+function openSign(action) {
+  var keys = Object.keys(S.sel), n = keys.length;
+  if (!n) return;
+  var pos = '';
+  try { pos = localStorage.getItem('goos_position') || ''; } catch (e) {}
+  var sh = $('sheet');
+  sh.innerHTML = '<div class="box"><h2>' + (action === 'approve' ? 'Approve ' : 'Reject ') + n + ' item(s)</h2>' +
+    '<p class="stamp">' + (action === 'approve'
+      ? 'Signing carries these out exactly as on the laptop. Anything that can no longer be done stays waiting, and you will see why.'
+      : 'Nothing changes in stock. Each stays on record as Rejected, with your reason.') + '</p>' +
+    (action === 'reject' ? '<label>Reason (required)</label><textarea id="sg-note" rows="2"></textarea>'
+                         : '<label>Note (optional)</label><input id="sg-note">') +
+    '<label>Your full name</label><input id="sg-name" autocomplete="name">' +
+    '<label>Your position</label><input id="sg-pos" value="' + esc(pos) + '">' +
+    '<label>Your GOOS password</label><input id="sg-pw" type="password" autocomplete="current-password">' +
+    (S.user ? '' : '<label>Your GOOS username</label><input id="sg-user" autocapitalize="none">') +
+    '<div class="err" id="sg-err"></div>' +
+    '<div class="two"><button class="btn ghost" id="sg-cancel" style="margin-top:0">Cancel</button>' +
+    '<button class="btn" id="sg-go">' + (action === 'approve' ? 'Sign and approve' : 'Sign and reject') + '</button></div></div>';
+  sh.className = 'on';
+  $('sg-cancel').onclick = function () { sh.className = ''; sh.innerHTML = ''; };
+  $('sg-go').onclick = function () { submitSign(action, keys); };
+}
+async function submitSign(action, keys) {
+  var name = $('sg-name').value.trim(), pos = $('sg-pos').value.trim(), pw = $('sg-pw').value;
+  var note = $('sg-note').value.trim(), user = S.user || ($('sg-user') ? $('sg-user').value.trim() : '');
+  var err = $('sg-err');
+  if (!name || pos.length < 2 || !pw || !user) { err.textContent = 'Type your full name, your position and your password to sign.'; return; }
+  if (action === 'reject' && !note) { err.textContent = 'Type the reason for rejecting.'; return; }
+  $('sg-go').disabled = true; err.textContent = 'Signing...';
+  var byKind = {};
+  keys.forEach(function (k) { var p = k.split(':'); (byKind[p[0]] = byKind[p[0]] || []).push(p[1]); });
+  var queued = 0, skipped = [], fail = '';
+  try {
+    var salt = await rpc('goos_m_salt', {p_user: user});
+    var h = await pbkdf2Hex(pw, String(salt));
+    for (var kind in byKind) {
+      var r = await rpc('goos_m_decide', {p_token: S.token, p_kind: kind, p_ids: byKind[kind].join(','),
+        p_action: action, p_name: name, p_position: pos, p_hash: h, p_note: note});
+      if (!r.ok) {
+        if (r.error === 'signin') { $('sheet').className = ''; S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+        fail = r.error; break;
+      }
+      queued += r.queued; skipped = skipped.concat(r.skipped || []);
+    }
+  } catch (e) {
+    fail = 'Could not reach GOOS. Check the internet and try again.';
+  }
+  if (fail && !queued) { err.textContent = fail; $('sg-go').disabled = false; return; }
+  try { localStorage.setItem('goos_position', pos); } catch (e) {}
+  S.sel = {};
+  $('sheet').innerHTML = '<div class="box"><h2>' + (queued ? 'Signed' : 'Nothing signed') + '</h2>' +
+    '<p>' + queued + ' item(s) sent. A GOOS laptop carries them out within a minute - watch "Your recent decisions".</p>' +
+    (skipped.length ? '<p class="prob">Not sent:<br>' + skipped.map(esc).join('<br>') + '</p>' : '') +
+    (fail ? '<p class="prob">' + esc(fail) + '</p>' : '') +
+    '<button class="btn" id="sg-done">OK</button></div>';
+  $('sg-done').onclick = function () { $('sheet').className = ''; $('sheet').innerHTML = ''; };
+  S.poll = 24;
+  await refresh();
+  schedulePoll();
+}
+function schedulePoll() {
+  /* watch the result arrive, without making anyone press Refresh */
+  if (S.poll <= 0 || S.view !== 'approvals') return;
+  var dec = (S.data && S.data.decisions) || [];
+  if (!dec.some(function (x) { return x.status === 'queued' || x.status === 'working'; })) { S.poll = 0; return; }
+  S.poll -= 1;
+  setTimeout(async function () {
+    if (S.view !== 'approvals' || $('sheet').className === 'on') { schedulePoll(); return; }
+    await refresh(); schedulePoll();
+  }, 5000);
 }
 
 /* ------------------------------------------------------------------ start */
