@@ -14,13 +14,13 @@
 html,body{margin:0;background:var(--cream);color:var(--navy);overflow-x:hidden;
  font:16px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 button,input,select{font:inherit}
-header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;
+header{position:sticky;top:0;z-index:31;background:var(--navy);color:#fff;
  padding:12px 14px calc(10px) 14px;display:flex;align-items:center;gap:10px}
 header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header .back{background:none;border:0;color:#fff;font-size:22px;padding:0 6px 0 0}
 header .rf{background:var(--wheat);color:var(--navy);border:0;border-radius:18px;
  padding:6px 12px;font-weight:700;font-size:14px}
-main{padding:12px 12px 90px;max-width:760px;margin:0 auto}
+main{padding:12px 12px 80px;max-width:760px;margin:0 auto}
 .stamp{color:var(--muted);font-size:12px;margin:2px 2px 10px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
@@ -45,11 +45,17 @@ main{padding:12px 12px 90px;max-width:760px;margin:0 auto}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .sum{background:var(--navy);color:#fff;border-radius:14px;padding:12px;margin-bottom:10px}
 .sum b{font-size:22px}
-nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
- display:flex;overflow-x:auto;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
-nav button{flex:1 0 auto;min-width:76px;background:none;border:0;padding:6px 4px;
- font-size:12px;color:var(--muted);border-radius:10px}
-nav button.on{background:#EEF0FA;color:var(--navy);font-weight:700}
+header .menu{background:none;border:0;color:#fff;font-size:24px;line-height:1;padding:0 4px 0 0}
+nav{position:fixed;top:52px;left:8px;z-index:30;background:#fff;border:1px solid var(--line);
+ border-radius:14px;box-shadow:0 8px 28px rgba(31,42,74,.25);display:none;flex-direction:column;
+ min-width:220px;max-height:75vh;overflow:auto;padding:6px}
+nav.on{display:flex}
+nav button{background:none;border:0;padding:12px 14px;text-align:left;font-size:16px;
+ color:var(--navy);border-radius:10px}
+nav button.on{background:#EEF0FA;font-weight:700}
+nav button.out{color:var(--fail);border-top:1px solid var(--line);border-radius:0 0 10px 10px}
+#scrim{position:fixed;inset:0;z-index:29;display:none}
+#scrim.on{display:block}
 .login{max-width:380px;margin:12vh auto 0;padding:0 18px}
 .login h2{margin:0 0 4px;font-size:28px} .login p{color:var(--muted);margin:0 0 18px}
 .login input{width:100%;padding:13px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:#fff}
@@ -70,7 +76,7 @@ a.tel{color:var(--navy)}
 .prob{color:var(--fail);font-weight:600}
 .banner{border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px;background:#EEF0FA}
 .banner.warn{background:#FBF0D9;color:var(--warn)}
-.actbar{position:fixed;left:0;right:0;bottom:58px;padding:8px 12px;display:flex;gap:8px;
+.actbar{position:fixed;left:0;right:0;bottom:0;padding:8px 12px;display:flex;gap:8px;
  background:rgba(250,245,234,.96);border-top:1px solid var(--line);z-index:6}
 .actbar button{flex:1;padding:12px;border-radius:12px;border:0;font-weight:700;color:#fff;background:var(--ok)}
 .actbar button.rej{background:var(--fail)}
@@ -119,12 +125,24 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.1'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.5'};
 var VIEWS = {
-  dashboard: 'Home', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
+  dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
   raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval'
 };
+// Menu order: Dashboard first, then what most often needs a decision.
+var ORDER = ['dashboard', 'approvals', 'quotes', 'orders', 'collections', 'customers',
+             'finished', 'lots', 'raw', 'qa'];
+function sortViews(v) {
+  var out = (v || []).slice();
+  if (out.indexOf('dashboard') < 0) out.unshift('dashboard');
+  out.sort(function (a, b) {
+    var x = ORDER.indexOf(a), y = ORDER.indexOf(b);
+    return (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
+  });
+  return out;
+}
 var S = {token: '', name: '', user: '', views: [], view: 'dashboard', arg: '', data: null,
          at: '', q: '', filter: '', busy: false, sel: {}, poll: 0, qf: null};
 function $(id) { return document.getElementById(id); }
@@ -245,21 +263,26 @@ function draw() {
   var title = !S.arg ? VIEWS[S.view] :
     S.view === 'quotes' ? (S.arg === 'form' ? (S.qf && S.qf.id ? 'Edit quotation' : 'New quotation') : 'Quotation') :
     S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : 'Record payment') : 'Order';
-  var html = '<header>' + (S.arg ? '<button class="back" id="back">&lsaquo;</button>' : '') +
+  S.views = sortViews(S.views);
+  var html = '<header><button class="menu" id="menu" aria-label="Menu">&#9776;</button>' +
+    (S.arg ? '<button class="back" id="back">&lsaquo;</button>' : '') +
     '<h1>' + esc(title) + '</h1><button class="rf" id="rf">' + (S.busy ? '...' : 'Refresh') + '</button></header><main>';
   if (S.at) html += '<div class="stamp">Updated ' + esc(S.at) + '</div>';
   var d = S.data;
   if (!d) html += '<div class="empty">Loading...</div>';
   else if (d.error) html += '<div class="empty">' + esc(d.error) + '</div>';
   else html += (SCREENS[S.view] || function () { return ''; })(d);
-  html += '</main><nav>' + S.views.map(function (v) {
-    return '<button data-v="' + v + '" class="' + (v === S.view && !S.arg ? 'on' : '') + '">' + esc(VIEWS[v] || v) + '</button>';
-  }).join('') + '<button data-v="__out">Sign out</button></nav>';
+  html += '</main><div id="scrim"></div><nav id="nav">' + S.views.map(function (v) {
+    return '<button data-v="' + v + '" class="' + (v === S.view ? 'on' : '') + '">' + esc(VIEWS[v] || v) + '</button>';
+  }).join('') + '<button data-v="__out" class="out">Sign out</button></nav>';
   $('app').innerHTML = html;
   $('rf').onclick = refresh;
+  var shut = function () { $('nav').classList.remove('on'); $('scrim').classList.remove('on'); };
+  $('menu').onclick = function () { $('nav').classList.toggle('on'); $('scrim').classList.toggle('on'); };
+  $('scrim').onclick = shut;
   if ($('back')) $('back').onclick = function () { go(S.view); };
   Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
-    b.onclick = function () { b.dataset.v === '__out' ? signOut() : go(b.dataset.v); };
+    b.onclick = function () { shut(); b.dataset.v === '__out' ? signOut() : go(b.dataset.v); };
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-go]'), function (el) {
     el.onclick = function () {
@@ -893,5 +916,11 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
 }
 load();
 if (S.token) go('dashboard'); else drawLogin('');
+// Coming back to the app after a while opens on the Dashboard again.
+var hiddenAt = 0;
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (S.token && hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.arg) go('dashboard');
+});
 </script>
 </body></html>
