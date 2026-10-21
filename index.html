@@ -125,7 +125,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.5'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.9'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -345,6 +345,11 @@ var SCREENS = {
       kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
       kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
       kpi(d.qa_open, 'Batches still being checked', '', 'qa') + '</div>' +
+      '<h3 style="margin:16px 0 8px;font-size:16px">Who is on GOOS now</h3>' +
+      ((d.online || []).length ? '<div class="list">' + d.online.map(function (p) {
+        return '<div class="row"><div class="t"><span>' + esc(p.name) + '</span><span class="pill ok">' + esc(p.page || '-') +
+          '</span></div><div class="s"><span>' + esc(p.role || '') + '</span><span>' + (p.ago < 60 ? 'just now' : Math.round(p.ago / 60) + ' min ago') + '</span></div></div>';
+      }).join('') + '</div>' : '<div class="empty">No one is signed in on a laptop right now.</div>') +
       '<div class="foot">On the phone: approvals, quotations and payments. Everything else is changed in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
   },
   orders: function (d) {
