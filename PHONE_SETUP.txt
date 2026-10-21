@@ -5,7 +5,8 @@ ONE TIME - publish the app (about 10 minutes)
  2. Click + (top right) > New repository. Name it goos-phone.
     Choose Public. Click Create repository.
  3. Click "uploading an existing file". Drag in EVERY file from this
-    folder (index.html, manifest.json, sw.js, the two icons).
+    folder (index.html, manifest.json, sw.js, the icons and logo.png
+    if there is one).
     Click Commit changes.
  4. Settings > Pages. Under Branch choose "main" and "/ (root)". Save.
  5. Wait 1-2 minutes. The page shows the address, like

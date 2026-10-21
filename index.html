@@ -82,19 +82,51 @@ a.tel{color:var(--navy)}
 #sheet input,#sheet textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;margin:4px 0 8px;background:#fff}
 #sheet label{font-size:13px;color:var(--muted)}
 #sheet .two{display:flex;gap:8px} #sheet .two .btn{flex:1}
+.fld{margin-bottom:8px}
+.fld label{display:block;font-size:13px;color:var(--muted);margin:0 2px 3px}
+.fld input,.fld select,.fld textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.two2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.qline{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.qline .x{float:right;background:none;border:0;color:var(--fail);font-size:20px;line-height:1;padding:0 4px}
+.qline .lt{text-align:right;font-weight:700;margin-top:4px}
+.tot{background:var(--navy);color:#fff;border-radius:14px;padding:12px;margin:10px 0}
+.tot div{display:flex;justify-content:space-between}
+.tot .g{font-size:20px;font-weight:800;margin-top:4px}
+.bar2{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.bar2 .btn{flex:1 1 140px;width:auto}
+.paper{background:#fff;color:#1F2A4A;border:1px solid var(--line);border-radius:6px;padding:16px;font-size:13px;line-height:1.4}
+.paper .hd{display:flex;justify-content:space-between;gap:10px;border-bottom:3px solid #1F2A4A;padding-bottom:8px}
+.paper .co{font-size:17px;font-weight:800}
+.paper .sm{font-size:11px;color:#5E6C89}
+.paper .dt{text-align:right;font-weight:800;letter-spacing:.08em}
+.paper .dt img{max-height:44px;max-width:140px;display:block;margin:0 0 4px auto}
+.paper h1{font-size:20px;margin:10px 0 2px}
+.paper .mt{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px;margin:8px 0;font-size:12px}
+.paper table{width:100%;border-collapse:collapse;margin:8px 0}
+.paper th{background:#1F2A4A;color:#fff;font-size:11px;text-align:left;padding:5px}
+.paper td{border-bottom:1px solid #E4DCCB;padding:5px;vertical-align:top}
+.paper .r{text-align:right;white-space:nowrap}
+.paper .gt td{font-weight:800;font-size:15px;border-top:2px solid #1F2A4A}
+.paper .sig{margin-top:34px;border-top:1px solid #1F2A4A;width:60%;font-size:11px;padding-top:3px}
+#print{display:none}
+@media print{
+ #app,#sheet,nav,header{display:none!important}
+ #print{display:block} body{background:#fff}
+ #print .paper{border:0;font-size:12px}
+}
 </style>
 </head><body>
-<div id="app"></div><div id="sheet"></div>
+<div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.93.0'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.94.0'};
 var VIEWS = {
-  dashboard: 'Home', orders: 'Orders', collections: 'Collections',
+  dashboard: 'Home', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
   raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval'
 };
 var S = {token: '', name: '', user: '', views: [], view: 'dashboard', arg: '', data: null,
-         at: '', q: '', filter: '', busy: false, sel: {}, poll: 0};
+         at: '', q: '', filter: '', busy: false, sel: {}, poll: 0, qf: null};
 function $(id) { return document.getElementById(id); }
 function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -210,7 +242,9 @@ function drawHead() {
   var b = $('rf'); if (b) b.textContent = S.busy ? '...' : 'Refresh';
 }
 function draw() {
-  var title = S.arg ? 'Order' : VIEWS[S.view];
+  var title = !S.arg ? VIEWS[S.view] :
+    S.view === 'quotes' ? (S.arg === 'form' ? (S.qf && S.qf.id ? 'Edit quotation' : 'New quotation') : 'Quotation') :
+    S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : 'Record payment') : 'Order';
   var html = '<header>' + (S.arg ? '<button class="back" id="back">&lsaquo;</button>' : '') +
     '<h1>' + esc(title) + '</h1><button class="rf" id="rf">' + (S.busy ? '...' : 'Refresh') + '</button></header><main>';
   if (S.at) html += '<div class="stamp">Updated ' + esc(S.at) + '</div>';
@@ -248,6 +282,10 @@ function draw() {
     };
   });
   if ($('do-ok')) $('do-ok').onclick = function () { openSign('approve'); };
+  if (S.view === 'quotes' && S.arg === 'form' && S.data && !S.data.error) wireEditor();
+  if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
+  if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.data && !S.data.error) wirePay();
+  if ($('q-new')) $('q-new').onclick = function () { S.qf = null; go('quotes', 'form'); };
   if ($('do-no')) $('do-no').onclick = function () { openSign('reject'); };
 }
 function search(ph) { return '<input id="q" class="search" placeholder="' + esc(ph) + '">'; }
@@ -284,7 +322,7 @@ var SCREENS = {
       kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
       kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
       kpi(d.qa_open, 'Batches still being checked', '', 'qa') + '</div>' +
-      '<div class="foot">Approvals can be signed on the phone; everything else is changed in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
+      '<div class="foot">On the phone: approvals, quotations and payments. Everything else is changed in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
   },
   orders: function (d) {
     if (S.arg) return orderDetail(d);
@@ -303,13 +341,19 @@ var SCREENS = {
       });
   },
   collections: function (d) {
+    if (S.arg === 'mine') return myPayments(d);
+    if (S.arg) return payScreen(d);
     var list = d.filter(function (o) { return hit(o, ['customer_name', 'reference', 'agent']); });
     var tot = list.reduce(function (a, o) { return a + Number(o.owed); }, 0);
     var over = list.filter(function (o) { return o.age > 30; }).reduce(function (a, o) { return a + Number(o.owed); }, 0);
+    if (S.arg === 'mine') return myPayments(d);
+    if (S.arg) return payScreen(d);
     return '<div class="sum">Still owed<br><b>' + peso(tot) + '</b><br><span style="font-size:13px">over 30 days: ' + peso(over) + '</span></div>' +
+      '<button class="btn ghost" style="margin:0 0 10px" data-go="collections:mine">Payments you recorded</button>' +
+      '<p class="stamp">Tap an order to record a payment.</p>' +
       search('Search customer, order or agent') + rows(list, function (o) {
         var cls = o.age > 90 ? 'bad' : (o.age > 30 ? 'warn' : '');
-        return '<div class="row tap" data-go="orders:' + o.id + '"><div class="t"><span>' + esc(o.customer_name) + '</span><span>' + peso(o.owed) +
+        return '<div class="row tap" data-go="collections:' + o.id + '"><div class="t"><span>' + esc(o.customer_name) + '</span><span>' + peso(o.owed) +
           '</span></div><div class="s"><span>' + esc(o.reference) + ' &middot; ' + esc(o.agent) + '</span><span class="pill ' + cls + '">' + o.age + ' days</span></div></div>';
       });
   },
@@ -364,7 +408,12 @@ var SCREENS = {
         '</span><span>Brix ' + esc(x.brix || '-') + ' &middot; pH ' + esc(x.ph || '-') + '</span></div></div>';
     });
   },
-  approvals: function (d) { return approvalsScreen(d); }
+  approvals: function (d) { return approvalsScreen(d); },
+  quotes: function (d) {
+    if (S.arg === 'form') return quoteEditor(d);
+    if (S.arg) return quoteView(d);
+    return quoteList(d);
+  }
 };
 function orderDetail(d) {
   var o = d.order;
@@ -500,14 +549,317 @@ async function submitSign(action, keys) {
 }
 function schedulePoll() {
   /* watch the result arrive, without making anyone press Refresh */
-  if (S.poll <= 0 || S.view !== 'approvals') return;
-  var dec = (S.data && S.data.decisions) || [];
+  var watch = S.view === 'approvals' ? ((S.data && S.data.decisions) || []) :
+              (S.view === 'collections' && S.arg === 'mine' && Array.isArray(S.data) ? S.data : null);
+  if (S.poll <= 0 || !watch) return;
+  var dec = watch;
   if (!dec.some(function (x) { return x.status === 'queued' || x.status === 'working'; })) { S.poll = 0; return; }
   S.poll -= 1;
   setTimeout(async function () {
-    if (S.view !== 'approvals' || $('sheet').className === 'on') { schedulePoll(); return; }
+    if ($('sheet').className === 'on') { schedulePoll(); return; }
     await refresh(); schedulePoll();
   }, 5000);
+}
+
+/* ----------------------------------------------------------- quotations */
+var QSTATE = {draft: ['Draft', ''], sent: ['Sent', 'ok']};
+var PAYTERMS = ['Online Transfer', 'Cash', 'Payment First', 'Collection', 'COD'];
+function quoteList(d) {
+  var f = S.filter;
+  var list = d.filter(function (x) {
+    return (!f || (f === 'mine' ? x.mine : x.state === f)) && hit(x, ['reference', 'customer_name', 'agent']);
+  });
+  return '<button class="btn" id="q-new" style="margin-bottom:10px">+ New quotation</button>' +
+    search('Search quotation, customer or agent') +
+    chips([['', 'All'], ['mine', 'Mine'], ['draft', 'Drafts'], ['sent', 'Sent']]) +
+    rows(list, function (x) {
+      var st = x.won ? ['Ordered', 'ok'] : (QSTATE[x.state] || [x.state, '']);
+      return '<div class="row tap" data-go="quotes:' + x.id + '"><div class="t"><span>' + esc(x.customer_name) +
+        '</span><span>' + peso(x.total) + '</span></div><div class="s"><span>' + esc(x.reference) + ' &middot; ' +
+        esc(x.day) + ' &middot; ' + esc(x.agent || '') + '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div></div>';
+    });
+}
+function qTotals(q, lines) {
+  var sub = lines.reduce(function (a, l) { return a + Math.round(Number(l.qty || 0) * Number(l.price || 0) * 100) / 100; }, 0);
+  var grand = Math.round((sub - Number(q.discount || 0) + Number(q.delivery_fee || 0)) * 100) / 100;
+  var rate = Number(q.vat_rate || 0);
+  var vatable = rate ? Math.round(grand / (1 + rate) * 100) / 100 : grand;
+  return {sub: sub, grand: grand, vatable: vatable, vat: Math.round((grand - vatable) * 100) / 100,
+          bottles: lines.reduce(function (a, l) { return a + Number(l.qty || 0); }, 0)};
+}
+function pesoP(n) { return Number(n || 0).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function quoteDoc(d) {
+  var q = d.quote, co = d.company || {}, t = qTotals(q, d.lines);
+  var addr = [co.co_street, co.co_city, co.co_province, co.co_zip].filter(Boolean).join(', ');
+  var contact = [co.co_email ? 'Email: ' + co.co_email : '', co.co_phone ? 'Tel ' + co.co_phone : '',
+                 co.co_mobile ? 'Mobile ' + co.co_mobile : ''].filter(Boolean).join(' &middot; ');
+  var meta = [['Quotation no.', q.reference], ['Date', q.qdate], ['Customer', q.customer_name], ['Address', q.address],
+              ['Contact person', q.contact_person], ['Contact number', q.contact_no], ['Sales agent', q.agent],
+              ['Payment terms', q.payment_terms], ['Delivery terms', q.delivery_terms], ['Validity', q.validity],
+              ['Prepared by', q.prepared_by]].filter(function (m) { return m[1]; });
+  return '<div class="paper" id="qdoc"><div class="hd"><div><div class="co">' + esc(co.co_name || co.pr_company || 'GRAIN OLA') + '</div>' +
+    (addr ? '<div class="sm">' + esc(addr) + '</div>' : '') + (contact ? '<div class="sm">' + contact + '</div>' : '') +
+    (co.co_tin ? '<div class="sm">VAT-REG TIN ' + esc(co.co_tin) + '</div>' : '') + '</div>' +
+    '<div class="dt"><img src="logo.png" alt="" onerror="this.remove()">QUOTATION</div></div>' +
+    '<h1>Quotation ' + esc(q.reference) + '</h1><div class="mt">' + meta.map(function (m) {
+      return '<div><b>' + esc(m[0]) + '</b> ' + esc(m[1]) + '</div>';
+    }).join('') + '</div>' +
+    '<table><tr><th>Item</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Total</th></tr>' +
+    d.lines.map(function (l) {
+      return '<tr><td>' + esc(l.name) + (l.size ? ' ' + esc(l.size) : '') + (l.code ? '<div class="sm">' + esc(l.code) + '</div>' : '') +
+        '</td><td class="r">' + num(l.qty) + '</td><td class="r">' + pesoP(l.price) + '</td><td class="r">' + pesoP(l.amount) + '</td></tr>';
+    }).join('') + '</table>' +
+    '<table>' + [['Subtotal', t.sub], ['Discount', -Number(q.discount || 0)], ['Delivery fee', q.delivery_fee],
+                 ['VATable sales', t.vatable], ['VAT (' + num(Number(q.vat_rate || 0) * 100) + '%)', t.vat]].map(function (r) {
+      return '<tr><td>' + r[0] + '</td><td class="r">' + pesoP(r[1]) + '</td></tr>';
+    }).join('') + '<tr class="gt"><td>GRAND TOTAL</td><td class="r">PHP ' + pesoP(t.grand) + '</td></tr></table>' +
+    '<div class="sm">Total bottles: ' + num(t.bottles) + '</div>' +
+    (q.notes ? '<p><b>Notes</b><br>' + esc(q.notes) + '</p>' : '') +
+    '<p class="sm"><b>Terms and conditions</b><br>Prices are subject to availability and may change without prior notice. ' +
+    'This quotation is not an invoice. Please confirm your order to proceed.</p>' +
+    '<div class="sig">Customer signature over printed name</div></div>';
+}
+function quoteView(d) {
+  if (!d.quote) return '<div class="empty">That quotation is no longer there.</div>';
+  var q = d.quote;
+  return '<div class="bar2"><button class="btn" id="q-img">Share as picture</button>' +
+    '<button class="btn ghost" id="q-pdf" style="margin-top:0">Save as PDF</button></div>' +
+    '<div class="bar2">' + (q.won ? '' : '<button class="btn ghost" id="q-edit" style="margin-top:0">Edit</button>') +
+    (q.state === 'draft' && !q.won ? '<button class="btn ghost" id="q-sent" style="margin-top:0">Mark as sent</button>' : '') + '</div>' +
+    '<div class="err" id="q-msg"></div>' + quoteDoc(d);
+}
+function wireQuoteView() {
+  var d = S.data;
+  $('q-pdf').onclick = function () {
+    $('print').innerHTML = quoteDoc(d);
+    var old = document.title; document.title = d.quote.reference + ' - ' + d.quote.customer_name;
+    window.print(); document.title = old;
+  };
+  $('q-img').onclick = function () { shareQuoteImage(d); };
+  if ($('q-edit')) $('q-edit').onclick = function () {
+    S.qf = {id: d.quote.id, customer_id: d.quote.customer_id || '', customer_name: d.quote.customer_name,
+      address: d.quote.address || '', contact_person: d.quote.contact_person || '', contact_no: d.quote.contact_no || '',
+      agent: d.quote.agent || '', payment_terms: d.quote.payment_terms || '', delivery_terms: d.quote.delivery_terms || '',
+      validity: d.quote.validity || '', notes: d.quote.notes || '', vat_rate: d.quote.vat_rate,
+      discount: d.quote.discount || '', delivery_fee: d.quote.delivery_fee || '',
+      lines: d.lines.map(function (l) { return {code: l.code, name: l.name, size: l.size, vat: l.vat, qty: l.qty, price: l.price}; })};
+    go('quotes', 'form');
+  };
+  if ($('q-sent')) $('q-sent').onclick = async function () {
+    try {
+      var r = await rpc('goos_m_quote', {p_token: S.token, p_action: 'sent', p_data: JSON.stringify({id: d.quote.id})});
+      if (r.ok) refresh(); else $('q-msg').textContent = r.error;
+    } catch (e) { $('q-msg').textContent = 'Could not reach GOOS.'; }
+  };
+}
+function loadScript(src) {
+  return new Promise(function (ok, bad) {
+    var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = bad;
+    document.head.appendChild(s);
+  });
+}
+async function shareQuoteImage(d) {
+  /* drawn at a fixed A4-ish width so the picture looks the same on every phone */
+  var msg = $('q-msg'); msg.textContent = 'Making the picture...';
+  try {
+    if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    var box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff';
+    box.innerHTML = quoteDoc(d);
+    document.body.appendChild(box);
+    var canvas = await window.html2canvas(box.firstChild, {scale: 2, backgroundColor: '#ffffff', useCORS: true});
+    box.remove();
+    var name = (d.quote.reference + ' - ' + d.quote.customer_name).replace(/[^A-Za-z0-9 ._-]/g, '') + '.png';
+    var blob = await new Promise(function (ok) { canvas.toBlob(ok, 'image/png'); });
+    var file = new File([blob], name, {type: 'image/png'});
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      await navigator.share({files: [file], title: d.quote.reference});
+      msg.textContent = '';
+    } else {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      msg.textContent = 'Picture saved to your Downloads.';
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') { msg.textContent = ''; return; }
+    msg.textContent = 'Could not make the picture here - use Save as PDF, or take a screenshot.';
+  }
+}
+function blankQuote(me) {
+  return {id: '', customer_id: '', customer_name: '', address: '', contact_person: '', contact_no: '',
+          agent: me || S.name, payment_terms: 'Online Transfer', delivery_terms: 'Scheduled', validity: '7 days',
+          notes: '', vat_rate: 0.12, discount: '', delivery_fee: '', lines: [{code: '', name: '', size: '', vat: '', qty: '', price: ''}]};
+}
+function fld(label, id, val, type, extra) {
+  return '<div class="fld"><label for="' + id + '">' + esc(label) + '</label><input id="' + id + '" type="' + (type || 'text') +
+    '" value="' + esc(val == null ? '' : val) + '"' + (extra || '') + '></div>';
+}
+function priceKey(p) { return [p.code, p.name, p.size].filter(Boolean).join(' | '); }
+function quoteEditor(d) {
+  if (!S.qf) S.qf = blankQuote(d.me);
+  var q = S.qf;
+  var opts = d.prices.map(function (p, i) { return '<option value="' + i + '">' + esc(priceKey(p)) + ' - ' + pesoP(p.price) + '</option>'; }).join('');
+  var html = '<datalist id="custlist">' + d.customers.map(function (c) { return '<option value="' + esc(c.name) + '">'; }).join('') + '</datalist>' +
+    fld('Customer (pick or type)', 'f-cust', q.customer_name, 'text', ' list="custlist" autocomplete="off"') +
+    fld('Address', 'f-addr', q.address) +
+    '<div class="two2">' + fld('Contact person', 'f-person', q.contact_person) + fld('Contact number', 'f-cno', q.contact_no, 'tel') + '</div>' +
+    '<h3 style="margin:14px 2px 8px">Items</h3><div id="f-lines">' +
+    q.lines.map(function (l, i) {
+      var sel = d.prices.findIndex(function (p) { return p.name === l.name && (p.code || '') === (l.code || '') && (p.size || '') === (l.size || ''); });
+      return '<div class="qline" data-i="' + i + '"><button class="x" data-rm="' + i + '" aria-label="Remove">&times;</button>' +
+        '<div class="fld"><label>Product</label><select data-f="prod" data-i="' + i + '"><option value="">Choose...</option>' +
+        opts.replace('value="' + sel + '"', 'value="' + sel + '" selected') + '</select></div>' +
+        '<div class="two2"><div class="fld"><label>Qty</label><input inputmode="decimal" data-f="qty" data-i="' + i + '" value="' + esc(l.qty) + '"></div>' +
+        '<div class="fld"><label>Unit price</label><input inputmode="decimal" data-f="price" data-i="' + i + '" value="' + esc(l.price) + '"></div></div>' +
+        '<div class="lt" id="lt-' + i + '">' + peso(Number(l.qty || 0) * Number(l.price || 0)) + '</div></div>';
+    }).join('') + '</div><button class="btn ghost" id="f-add" style="margin-top:0">+ Add item</button>' +
+    '<h3 style="margin:14px 2px 8px">Terms</h3>' +
+    '<div class="fld"><label for="f-pay">Payment terms</label><select id="f-pay">' + PAYTERMS.map(function (t) {
+      return '<option' + (t === q.payment_terms ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="two2">' + fld('Delivery terms', 'f-dlv', q.delivery_terms) + fld('Validity', 'f-valid', q.validity) + '</div>' +
+    '<div class="two2">' + fld('Discount (total)', 'f-disc', q.discount, 'text', ' inputmode="decimal"') +
+    fld('Delivery fee', 'f-fee', q.delivery_fee, 'text', ' inputmode="decimal"') + '</div>' +
+    '<div class="two2">' + fld('VAT rate (%)', 'f-vat', num(Number(q.vat_rate) * 100), 'text', ' inputmode="decimal"') +
+    fld('Sales agent', 'f-agent', q.agent) + '</div>' +
+    fld('Notes', 'f-notes', q.notes) +
+    '<div class="tot" id="f-tot"></div><div class="err" id="f-err"></div>' +
+    '<button class="btn" id="f-save">Save quotation</button>' +
+    '<button class="btn ghost" id="f-cancel">Cancel</button>';
+  return html;
+}
+function readEditor() {
+  var q = S.qf;
+  q.customer_name = $('f-cust').value; q.address = $('f-addr').value; q.contact_person = $('f-person').value;
+  q.contact_no = $('f-cno').value; q.payment_terms = $('f-pay').value; q.delivery_terms = $('f-dlv').value;
+  q.validity = $('f-valid').value; q.discount = $('f-disc').value; q.delivery_fee = $('f-fee').value;
+  q.vat_rate = $('f-vat').value === '' ? 0 : Number($('f-vat').value) / 100; q.agent = $('f-agent').value; q.notes = $('f-notes').value;
+  Array.prototype.forEach.call(document.querySelectorAll('#f-lines [data-f=qty]'), function (e) { q.lines[e.dataset.i].qty = e.value; });
+  Array.prototype.forEach.call(document.querySelectorAll('#f-lines [data-f=price]'), function (e) { q.lines[e.dataset.i].price = e.value; });
+}
+function paintTotals() {
+  readEditor();
+  var q = S.qf, t = qTotals(q, q.lines.filter(function (l) { return l.name; }));
+  q.lines.forEach(function (l, i) { var e = $('lt-' + i); if (e) e.textContent = peso(Number(l.qty || 0) * Number(l.price || 0)); });
+  $('f-tot').innerHTML = '<div><span>Subtotal</span><span>' + peso(t.sub) + '</span></div>' +
+    '<div><span>VATable</span><span>' + peso(t.vatable) + '</span></div><div><span>VAT</span><span>' + peso(t.vat) + '</span></div>' +
+    '<div class="g"><span>GRAND TOTAL</span><span>' + peso(t.grand) + '</span></div>';
+}
+function wireEditor() {
+  var d = S.data, q = S.qf;
+  $('f-cust').onchange = function () {
+    var c = d.customers.find(function (x) { return x.name === $('f-cust').value; });
+    q.customer_id = c ? c.id : '';
+    if (c) { $('f-addr').value = c.address || ''; $('f-person').value = c.person || ''; $('f-cno').value = c.mobile || ''; }
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('#f-lines select'), function (e) {
+    e.onchange = function () {
+      var p = d.prices[e.value], l = q.lines[e.dataset.i];
+      if (!p) { l.name = ''; l.code = ''; l.size = ''; return; }
+      l.name = p.name; l.code = p.code; l.size = p.size; l.vat = p.vat;
+      var pe = document.querySelector('#f-lines [data-f=price][data-i="' + e.dataset.i + '"]');
+      pe.value = p.price;
+      var qe = document.querySelector('#f-lines [data-f=qty][data-i="' + e.dataset.i + '"]');
+      if (!qe.value) qe.value = 1;
+      paintTotals();
+    };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#f-lines input, #f-disc, #f-fee, #f-vat'), function (e) {
+    e.oninput = paintTotals;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-rm]'), function (b) {
+    b.onclick = function () { readEditor(); q.lines.splice(Number(b.dataset.rm), 1);
+      if (!q.lines.length) q.lines.push({code: '', name: '', size: '', vat: '', qty: '', price: ''}); draw(); };
+  });
+  $('f-add').onclick = function () { readEditor(); q.lines.push({code: '', name: '', size: '', vat: '', qty: '', price: ''}); draw(); };
+  $('f-cancel').onclick = function () { var id = q.id; S.qf = null; id ? go('quotes', String(id)) : go('quotes'); };
+  $('f-save').onclick = async function () {
+    readEditor();
+    var err = $('f-err');
+    if (!q.customer_name.trim()) { err.textContent = 'Choose or type the customer name.'; return; }
+    var lines = q.lines.filter(function (l) { return l.name && Number(l.qty) > 0; });
+    if (!lines.length) { err.textContent = 'Add at least one item with a quantity.'; return; }
+    var bad = q.lines.some(function (l) { return l.name && (isNaN(Number(l.qty)) || isNaN(Number(l.price)) || Number(l.price) < 0); });
+    if (bad || isNaN(Number(q.discount || 0)) || isNaN(Number(q.delivery_fee || 0)) || isNaN(q.vat_rate)) {
+      err.textContent = 'A quantity, price or amount is not a number.'; return;
+    }
+    $('f-save').disabled = true; err.textContent = 'Saving...';
+    var body = JSON.parse(JSON.stringify(q));
+    body.lines = lines.map(function (l) { return {code: l.code, name: l.name, size: l.size, vat: l.vat, qty: Number(l.qty), price: Number(l.price)}; });
+    body.discount = Number(q.discount || 0); body.delivery_fee = Number(q.delivery_fee || 0);
+    try {
+      var r = await rpc('goos_m_quote', {p_token: S.token, p_action: 'save', p_data: JSON.stringify(body)});
+      if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+      if (!r.ok) { err.textContent = r.error; $('f-save').disabled = false; return; }
+      S.qf = null; go('quotes', String(r.id));
+    } catch (e) {
+      err.textContent = 'Could not reach GOOS - nothing was saved. Check the internet and try again.';
+      $('f-save').disabled = false;
+    }
+  };
+  paintTotals();
+}
+
+/* -------------------------------------------------------------- payments */
+function defaultAccount(accts, method) {
+  var m = String(method || '').toLowerCase();
+  if (/cod|cash/.test(m)) {
+    var h = accts.find(function (a) { return /on hand/i.test(a[1]) || /^cash$/i.test(String(a[1]).trim()); });
+    if (h) return h[0];
+  }
+  var b = accts.find(function (a) { return /bank/i.test(a[1]) && !/equivalent/i.test(a[1]); });
+  return (b || accts[0] || [''])[0];
+}
+function payScreen(d) {
+  var o = d.order;
+  if (!o) return '<div class="empty">That order is no longer there.</div>';
+  var pend = Number(d.pending || 0), owed = Math.round((Number(o.total) - Number(o.paid) - pend) * 100) / 100;
+  var accts = d.accounts || [];
+  var html = '<div class="sum">' + esc(o.customer_name) + '<br><b>' + peso(Math.max(owed, 0)) + '</b> still owed<br><span style="font-size:13px">' +
+    esc(o.reference) + ' &middot; total ' + peso(o.total) + ' &middot; paid ' + peso(o.paid) + '</span></div>';
+  if (pend > 0) html += '<div class="banner warn">' + peso(pend) + ' recorded on a phone is waiting to be posted.</div>';
+  if (!d.laptops) html += '<div class="banner warn">No GOOS laptop is open right now. The payment is kept safely and posted as soon as one opens.</div>';
+  if (o.state !== 'dispatched' && o.state !== 'recorded') return html + '<div class="empty">Only delivered orders take payments.</div>';
+  if (owed <= 0.009) return html + '<div class="empty">Nothing left to collect on this order.</div>';
+  if (!accts.length) return html + '<div class="empty">Open GOOS on a laptop once so the phone learns where payments can go, then press Refresh.</div>';
+  var def = o.paid_to || defaultAccount(accts, o.payment_method);
+  return html +
+    fld('Amount received', 'p-amt', owed.toFixed(2), 'text', ' inputmode="decimal"') +
+    fld('Date received', 'p-date', d.today, 'date', ' max="' + esc(d.today) + '"') +
+    '<div class="fld"><label for="p-acct">Received into</label><select id="p-acct">' + accts.map(function (a) {
+      return '<option value="' + esc(a[0]) + '"' + (a[0] === def ? ' selected' : '') + '>' + esc(a[0] + ' - ' + a[1]) + '</option>'; }).join('') + '</select></div>' +
+    fld('Reference (OR no., GCash or bank ref) - optional', 'p-ref', '') +
+    '<div class="err" id="p-err"></div><button class="btn" id="p-go">Record payment</button>' +
+    '<p class="stamp">A part payment is fine - the balance stays on the Collections list until it is settled.</p>';
+}
+function wirePay() {
+  var b = $('p-go'); if (!b) return;
+  var o = S.data.order;
+  b.onclick = async function () {
+    var amt = Number($('p-amt').value), err = $('p-err');
+    if (!(amt > 0)) { err.textContent = 'Enter the amount received.'; return; }
+    if (!confirm('Record ' + peso(amt) + ' from ' + o.customer_name + ' (' + o.reference + ')?')) return;
+    b.disabled = true; err.textContent = 'Saving...';
+    try {
+      var r = await rpc('goos_m_pay', {p_token: S.token, p_order: String(o.id), p_amount: String(amt),
+        p_date: $('p-date').value, p_account: $('p-acct').value, p_ref: $('p-ref').value});
+      if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+      if (!r.ok) { err.textContent = r.error; b.disabled = false; return; }
+      S.poll = 24; await go('collections', 'mine'); schedulePoll();
+    } catch (e) {
+      err.textContent = 'Could not reach GOOS - nothing was recorded. Check the internet and try again.';
+      b.disabled = false;
+    }
+  };
+}
+function myPayments(d) {
+  if (!d.length) return '<div class="empty">You have not recorded any payments on the phone yet.</div>';
+  return '<div class="list">' + d.map(function (x) {
+    var st = DSTAT[x.status] || [x.status, ''];
+    return '<div class="row"><div class="t"><span>' + esc(x.customer_name || '') + ' &middot; ' + peso(x.amount) +
+      '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div><div class="s"><span>' + esc(x.reference || '') +
+      (x.ref ? ' &middot; ref ' + esc(x.ref) : '') + ' &middot; ' + esc(x.paid_on) + '</span><span>' + esc(x.at) + '</span></div>' +
+      (x.result ? '<div class="s"><span>' + esc(x.result) + '</span></div>' : '') + '</div>';
+  }).join('') + '</div>';
 }
 
 /* ------------------------------------------------------------------ start */
