@@ -125,14 +125,14 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.9'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.31'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
-  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval'
+  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval', release: 'Batch Release'
 };
 // Menu order: Dashboard first, then what most often needs a decision.
-var ORDER = ['dashboard', 'approvals', 'quotes', 'orders', 'collections', 'customers',
+var ORDER = ['dashboard', 'approvals', 'release', 'quotes', 'orders', 'collections', 'customers',
              'finished', 'lots', 'raw', 'qa'];
 function sortViews(v) {
   var out = (v || []).slice();
@@ -305,6 +305,9 @@ function draw() {
     };
   });
   if ($('do-ok')) $('do-ok').onclick = function () { openSign('approve'); };
+  Array.prototype.forEach.call(document.querySelectorAll('.rl-go'), function (b) {
+    b.onclick = function () { openSign(b.dataset.a, ['release:' + b.dataset.id]); };
+  });
   if (S.view === 'quotes' && S.arg === 'form' && S.data && !S.data.error) wireEditor();
   if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
   if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.data && !S.data.error) wirePay();
@@ -341,6 +344,7 @@ var SCREENS = {
       kpi(pesoShort(d.sales_month), 'Sales this month', '', '') +
       kpi(pesoShort(d.owed), d.owed_count + ' unpaid deliveries', d.owed > 0 ? 'warn' : '', 'collections') +
       kpi(d.approvals, 'Waiting for approval', d.approvals ? 'warn' : '', 'approvals') +
+      (S.views.indexOf('release') >= 0 ? kpi(d.release_hold || 0, 'Batches on hold (Batch Release)', d.release_hold ? 'warn' : '', 'release') : '') +
       kpi(d.raw_low, 'Materials at reorder level', d.raw_low ? 'bad' : '', 'raw') +
       kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
       kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
@@ -350,7 +354,7 @@ var SCREENS = {
         return '<div class="row"><div class="t"><span>' + esc(p.name) + '</span><span class="pill ok">' + esc(p.page || '-') +
           '</span></div><div class="s"><span>' + esc(p.role || '') + '</span><span>' + (p.ago < 60 ? 'just now' : Math.round(p.ago / 60) + ' min ago') + '</span></div></div>';
       }).join('') + '</div>' : '<div class="empty">No one is signed in on a laptop right now.</div>') +
-      '<div class="foot">On the phone: approvals, quotations and payments. Everything else is changed in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
+      '<div class="foot">On the phone: approvals, batch release, quotations and payments. Everything else is changed in GOOS on the laptops. App ' + esc(CFG.version) + '</div>';
   },
   orders: function (d) {
     if (S.arg) return orderDetail(d);
@@ -437,6 +441,7 @@ var SCREENS = {
     });
   },
   approvals: function (d) { return approvalsScreen(d); },
+  release: function (d) { return releaseScreen(d); },
   quotes: function (d) {
     if (S.arg === 'form') return quoteEditor(d);
     if (S.arg) return quoteView(d);
@@ -464,7 +469,8 @@ function orderDetail(d) {
 }
 
 /* ------------------------------------------------------------ approvals */
-var KIND = {adj: 'Count adjustment', repack: 'Repack', srr: 'Sample / retainer'};
+var KIND = {adj: 'Count adjustment', repack: 'Repack', srr: 'Sample / retainer',
+            dispatch: 'Dispatch without stock', release: 'Batch release'};
 var DSTAT = {queued: ['Waiting for a laptop', 'warn'], working: ['Being carried out', 'warn'],
              done: ['Done', 'ok'], failed: ['Not done', 'bad']};
 function approvalsScreen(d) {
@@ -478,10 +484,10 @@ function approvalsScreen(d) {
     html += '<div class="banner">Only QA or the owner can sign these. You can see what is waiting.</div>';
   }
   html += search('Search product, LOT or person') +
-    chips([['', 'All'], ['adj', 'Count adjustments'], ['repack', 'Repacks'], ['srr', 'Samples / retainers']]);
+    chips([['', 'All'], ['adj', 'Count adjustments'], ['repack', 'Repacks'], ['srr', 'Samples / retainers'], ['dispatch', 'Dispatch (CEO)']]);
   html += rows(list, function (x) {
     var k = x.kind + ':' + x.id;
-    var canTick = d.can_sign && !x.mine && !x.sent;
+    var canTick = d.can_sign && !x.mine && !x.sent && (x.kind !== 'dispatch' || d.ceo);
     var lines = String(x.lines || '').split('\n').filter(Boolean);
     var probs = String(x.problems || '').split('\n').filter(Boolean);
     var state = x.sent ? '<span class="pill warn">Signed - waiting for a laptop</span>' :
@@ -502,7 +508,7 @@ function approvalsScreen(d) {
   if (dec.length) {
     html += '<h3 style="margin:18px 2px 8px">Your recent decisions</h3><div class="list">' + dec.map(function (x) {
       var st = DSTAT[x.status] || [x.status, ''];
-      return '<div class="row"><div class="t"><span>' + (x.action === 'approve' ? 'Approve' : 'Reject') + ' ' +
+      return '<div class="row"><div class="t"><span>' + (ACTW[x.action] || x.action) + ' ' +
         esc(KIND[x.kind] || x.kind) + ' #' + esc(x.ref_id) + '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div>' +
         '<div class="s"><span>' + esc(x.result || '') + '</span><span>' + esc(x.at) + '</span></div></div>';
     }).join('') + '</div>';
@@ -514,25 +520,69 @@ function approvalsScreen(d) {
   }
   return html;
 }
-function openSign(action) {
-  var keys = Object.keys(S.sel), n = keys.length;
+var ACTW = {approve: 'Approve', reject: 'Reject', release: 'Release', override: 'Release anyway'};
+function releaseScreen(d) {
+  var items = d.items || [], f = S.filter;
+  var list = items.filter(function (x) {
+    return (!f || (f === 'ready' ? x.ready : !x.ready)) && hit(x, ['lot', 'product']);
+  });
+  var html = '';
+  if (!d.laptops) html += '<div class="banner warn">No GOOS laptop is open right now. What you sign is kept and carried out as soon as one opens.</div>';
+  if (!d.can_release) html += '<div class="banner">Only QA or the owner can release batches. You can see what is on hold.</div>';
+  html += '<div class="banner">Every LOT starts ON HOLD and cannot be sent until it is released.' +
+    (d.at ? ' List as of ' + esc(d.at) + '.' : ' The list appears once a GOOS laptop is open.') + '</div>';
+  html += search('Search LOT or product') + chips([['', 'All on hold'], ['ready', 'Ready to release'], ['open', 'Checks missing']]);
+  html += rows(list, function (x) {
+    var checks = (x.checks || []).map(function (c) {
+      return '<div' + (c[1] === 'ok' ? '' : ' class="prob"') + '>' + (c[1] === 'ok' ? '\u2714 ' : '\u2716 ') +
+        esc(c[0]) + (c[2] ? ' - ' + esc(c[2]) : '') + '</div>';
+    }).join('');
+    var btns = '';
+    if (d.can_release && !x.sent) {
+      if (x.ready) btns += '<button class="btn rl-go" data-id="' + x.id + '" data-a="release" style="margin-top:8px">Release</button>';
+      else if (d.ceo && !(x.discarded || []).length) btns += '<button class="btn rl-go" data-id="' + x.id + '" data-a="override" style="margin-top:8px">Release anyway (CEO)</button>';
+      btns += '<button class="btn ghost rl-go" data-id="' + x.id + '" data-a="reject" style="margin-top:6px">Reject</button>';
+    }
+    return '<div class="row"><div class="t"><span>' + esc(x.product) + '</span><span class="pill ' + (x.ready ? 'ok' : 'warn') + '">' +
+      (x.sent ? 'Signed - waiting for a laptop' : (x.ready ? 'Ready' : 'On hold')) + '</span></div>' +
+      '<div class="s"><span>LOT ' + esc(x.lot || '(no code)') + ' &middot; made ' + esc(x.made || '-') + '</span><span>' + num(x.bottles) + ' bottles</span></div>' +
+      (checks ? '<div class="prev">' + checks + '</div>' : '') + btns + '</div>';
+  });
+  var dec = d.decisions || [];
+  if (dec.length) {
+    html += '<h3 style="margin:18px 2px 8px">Your recent decisions</h3><div class="list">' + dec.map(function (x) {
+      var st = DSTAT[x.status] || [x.status, ''];
+      return '<div class="row"><div class="t"><span>' + esc(ACTW[x.action] || x.action) + '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div>' +
+        '<div class="s"><span>' + esc(x.result || '') + '</span><span>' + esc(x.at) + '</span></div></div>';
+    }).join('') + '</div>';
+  }
+  return html;
+}
+function openSign(action, only) {
+  var keys = only || Object.keys(S.sel), n = keys.length;
   if (!n) return;
   var pos = '';
   try { pos = localStorage.getItem('goos_position') || ''; } catch (e) {}
   var sh = $('sheet');
-  sh.innerHTML = '<div class="box"><h2>' + (action === 'approve' ? 'Approve ' : 'Reject ') + n + ' item(s)</h2>' +
-    '<p class="stamp">' + (action === 'approve'
+  var isRel = keys[0] && keys[0].indexOf('release:') === 0;
+  sh.innerHTML = '<div class="box"><h2>' + (ACTW[action] || action) + ' ' + (isRel ? 'this batch' : n + ' item(s)') + '</h2>' +
+    '<p class="stamp">' + (action === 'override'
+      ? 'The LOT is released although its checks are not complete. Logistics may then send it, and its ON HOLD warnings disappear.'
+      : action === 'release' ? 'The LOT becomes stock that Logistics may send. Orders waiting for it get it at once.'
+      : action === 'approve'
       ? 'Signing carries these out exactly as on the laptop. Anything that can no longer be done stays waiting, and you will see why.'
+      : isRel ? 'The LOT can never be sent. Write its bottles off in Wastage afterwards.'
       : 'Nothing changes in stock. Each stays on record as Rejected, with your reason.') + '</p>' +
-    (action === 'reject' ? '<label>Reason (required)</label><textarea id="sg-note" rows="2"></textarea>'
-                         : '<label>Note (optional)</label><input id="sg-note">') +
+    (action === 'reject' || action === 'override'
+      ? '<label>Reason (required' + (action === 'override' ? ', 10 characters or more' : '') + ')</label><textarea id="sg-note" rows="2"></textarea>'
+      : '<label>Note (optional)</label><input id="sg-note">') +
     '<label>Your full name</label><input id="sg-name" autocomplete="name">' +
     '<label>Your position</label><input id="sg-pos" value="' + esc(pos) + '">' +
     '<label>Your GOOS password</label><input id="sg-pw" type="password" autocomplete="current-password">' +
     (S.user ? '' : '<label>Your GOOS username</label><input id="sg-user" autocapitalize="none">') +
     '<div class="err" id="sg-err"></div>' +
     '<div class="two"><button class="btn ghost" id="sg-cancel" style="margin-top:0">Cancel</button>' +
-    '<button class="btn" id="sg-go">' + (action === 'approve' ? 'Sign and approve' : 'Sign and reject') + '</button></div></div>';
+    '<button class="btn" id="sg-go">Sign and ' + (ACTW[action] || action).toLowerCase() + '</button></div></div>';
   sh.className = 'on';
   $('sg-cancel').onclick = function () { sh.className = ''; sh.innerHTML = ''; };
   $('sg-go').onclick = function () { submitSign(action, keys); };
@@ -543,6 +593,7 @@ async function submitSign(action, keys) {
   var err = $('sg-err');
   if (!name || pos.length < 2 || !pw || !user) { err.textContent = 'Type your full name, your position and your password to sign.'; return; }
   if (action === 'reject' && !note) { err.textContent = 'Type the reason for rejecting.'; return; }
+  if (action === 'override' && note.length < 10) { err.textContent = 'Write the reason - at least 10 characters.'; return; }
   $('sg-go').disabled = true; err.textContent = 'Signing...';
   var byKind = {};
   keys.forEach(function (k) { var p = k.split(':'); (byKind[p[0]] = byKind[p[0]] || []).push(p[1]); });
@@ -577,7 +628,7 @@ async function submitSign(action, keys) {
 }
 function schedulePoll() {
   /* watch the result arrive, without making anyone press Refresh */
-  var watch = S.view === 'approvals' ? ((S.data && S.data.decisions) || []) :
+  var watch = (S.view === 'approvals' || S.view === 'release') ? ((S.data && S.data.decisions) || []) :
               (S.view === 'collections' && S.arg === 'mine' && Array.isArray(S.data) ? S.data : null);
   if (S.poll <= 0 || !watch) return;
   var dec = watch;
