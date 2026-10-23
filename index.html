@@ -125,7 +125,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.31'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.34'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -335,6 +335,15 @@ function kpi(v, label, cls, link) {
   return '<div class="kpi ' + (cls || '') + (link ? ' go' : '') + '"' + (link ? ' data-go="' + link + '"' : '') +
          '><b>' + v + '</b><span>' + esc(label) + '</span></div>';
 }
+function qaWork(list) {
+  if (!list) return '';
+  var late = list.filter(function (x) { return x.late; }).length;
+  return '<h3 style="margin:16px 0 8px;font-size:16px">QA work' + (late ? ' <span class="pill bad">' + late + ' LATE</span>' : '') + '</h3>' +
+    (list.length ? '<div class="list">' + list.map(function (x) {
+      return '<div class="row"><div class="t"><span' + (x.late ? ' style="color:#B3402C;font-weight:700"' : '') + '>' +
+        (x.late ? 'LATE - ' : '') + esc(x.text) + '</span></div></div>';
+    }).join('') + '</div>' : '<div class="empty">QA is up to date.</div>');
+}
 var SCREENS = {
   dashboard: function (d) {
     return '<p style="margin:0 0 10px">Hello, <b>' + esc(d.name) + '</b></p><div class="grid">' +
@@ -349,6 +358,7 @@ var SCREENS = {
       kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
       kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
       kpi(d.qa_open, 'Batches still being checked', '', 'qa') + '</div>' +
+      qaWork(d.qa_work) +
       '<h3 style="margin:16px 0 8px;font-size:16px">Who is on GOOS now</h3>' +
       ((d.online || []).length ? '<div class="list">' + d.online.map(function (p) {
         return '<div class="row"><div class="t"><span>' + esc(p.name) + '</span><span class="pill ok">' + esc(p.page || '-') +
