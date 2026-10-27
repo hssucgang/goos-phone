@@ -125,14 +125,14 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.34'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.67'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
-  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval', release: 'Batch Release'
+  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval', release: 'Batch Release', production: 'Production'
 };
 // Menu order: Dashboard first, then what most often needs a decision.
-var ORDER = ['dashboard', 'approvals', 'release', 'quotes', 'orders', 'collections', 'customers',
+var ORDER = ['dashboard', 'approvals', 'release', 'production', 'quotes', 'orders', 'collections', 'customers',
              'finished', 'lots', 'raw', 'qa'];
 function sortViews(v) {
   var out = (v || []).slice();
@@ -308,6 +308,18 @@ function draw() {
   Array.prototype.forEach.call(document.querySelectorAll('.rl-go'), function (b) {
     b.onclick = function () { openSign(b.dataset.a, ['release:' + b.dataset.id]); };
   });
+  Array.prototype.forEach.call(document.querySelectorAll('.ov-go'), function (b) {
+    b.onclick = function () { openOverride(b.dataset.a, b.dataset.id); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.pd-day'), function (b) {
+    b.onclick = function () { go('production', b.dataset.d); };
+  });
+  /* Production is for watching: it refreshes itself every 20 seconds while
+     it is open, but never under a half-typed signature. */
+  clearTimeout(PDT);
+  if (S.view === 'production') PDT = setTimeout(function () {
+    if (S.view === 'production' && $('sheet').className !== 'on') refresh();
+  }, 20000);
   if (S.view === 'quotes' && S.arg === 'form' && S.data && !S.data.error) wireEditor();
   if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
   if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.data && !S.data.error) wirePay();
@@ -354,6 +366,7 @@ var SCREENS = {
       kpi(pesoShort(d.owed), d.owed_count + ' unpaid deliveries', d.owed > 0 ? 'warn' : '', 'collections') +
       kpi(d.approvals, 'Waiting for approval', d.approvals ? 'warn' : '', 'approvals') +
       (S.views.indexOf('release') >= 0 ? kpi(d.release_hold || 0, 'Batches on hold (Batch Release)', d.release_hold ? 'warn' : '', 'release') : '') +
+      (S.views.indexOf('production') >= 0 ? kpi(d.tablet_ov || 0, 'Tablet overrides waiting for you', d.tablet_ov ? 'bad' : '', 'production') : '') +
       kpi(d.raw_low, 'Materials at reorder level', d.raw_low ? 'bad' : '', 'raw') +
       kpi(d.fg_out, 'Finished goods out of stock', d.fg_out ? 'bad' : '', 'finished') +
       kpi(d.lots_expiring, 'LOTs expiring in 30 days', d.lots_expiring ? 'warn' : '', 'lots') +
@@ -452,6 +465,7 @@ var SCREENS = {
   },
   approvals: function (d) { return approvalsScreen(d); },
   release: function (d) { return releaseScreen(d); },
+  production: function (d) { return productionScreen(d); },
   quotes: function (d) {
     if (S.arg === 'form') return quoteEditor(d);
     if (S.arg) return quoteView(d);
@@ -567,6 +581,114 @@ function releaseScreen(d) {
     }).join('') + '</div>';
   }
   return html;
+}
+/* ---------------------------------------------------------- production */
+var PDT = null;
+var OVW = {redo: 'Void this batch and start it again', back: 'Void this batch and go back to the schedule',
+           reload: 'Reload the whole schedule from GOOS'};
+var OVST = {pending: ['Waiting for you', 'bad'], approved: ['Approved', 'ok'], rejected: ['Rejected', ''],
+            expired: ['Expired', ''], cancelled: ['Cancelled on the tablet', ''],
+            offline: ['OFFLINE - passcode used', 'bad']};
+var PST = {todo: ['Not started', ''], doing: ['In progress', 'warn'], done: ['Done', 'ok']};
+function productionScreen(d) {
+  var html = '', day = d.day;
+  var days = (d.days || []).slice(0, 7);
+  if (days.indexOf(d.today) < 0) days.unshift(d.today);
+  html += '<div class="chips">' + days.map(function (x) {
+    return '<button class="chip pd-day' + (x === day ? ' on' : '') + '" data-d="' + esc(x) + '">' +
+      (x === d.today ? 'Today' : esc(x.slice(5))) + '</button>';
+  }).join('') + '</div>';
+  // 1. overrides waiting - first, because the tablet is stopped until someone answers
+  var ovs = d.overrides || [];
+  var open = ovs.filter(function (o) { return o.open; });
+  if (open.length) {
+    html += '<h3 style="margin:14px 2px 8px">Override requests</h3><div class="list">' + open.map(function (o) {
+      return '<div class="row"><div class="t"><span>' + esc(o.recipe || 'Schedule') + '</span><span class="pill bad">Waiting</span></div>' +
+        '<div class="s"><span>LOT ' + esc(o.lot || '-') + ' &middot; asked by ' + esc(o.requested_by) + '</span><span>' + esc(o.at) + '</span></div>' +
+        '<div class="prev"><b>' + esc(OVW[o.action] || o.action) + '</b><br>' + esc(o.reason) + '</div>' +
+        (d.can_approve ? '<div class="two"><button class="btn ghost ov-go" data-a="reject" data-id="' + o.id + '" style="margin-top:8px">Reject</button>' +
+          '<button class="btn ov-go" data-a="approve" data-id="' + o.id + '" style="margin-top:8px">Approve</button></div>'
+          : '<div class="s"><span>Only QA or the owner can decide.</span></div>') + '</div>';
+    }).join('') + '</div>';
+  }
+  // 2. each schedule sent for the day, with what the tablet says about it
+  var prog = {};
+  (d.progress || []).forEach(function (p) { prog[p.ref] = p; });
+  var scheds = d.schedules || [];
+  if (!scheds.length && !(d.progress || []).length)
+    html += '<div class="empty">No production schedule was sent for ' + (day === d.today ? 'today' : esc(day)) + '.</div>';
+  scheds.forEach(function (sc) {
+    var p = prog[sc.ref], st = p ? p.state : null;
+    var lines = st && st.lines ? st.lines : (sc.recipes || []).map(function (r) { return {name: r.name, qty: r.qty, size: r.size, status: 'todo'}; });
+    var done = lines.filter(function (l) { return l.status === 'done'; }).length;
+    html += '<h3 style="margin:16px 2px 4px">' + esc(sc.ref) + ' &middot; ' + esc(sc.shift || '') + '</h3>' +
+      '<div class="s" style="margin:0 2px 8px;font-size:13px;color:#6b7280">' + done + ' of ' + lines.length + ' done' +
+      (p ? ' &middot; ' + esc(p.tablet) + ' updated ' + (p.ago < 90 ? 'just now' : esc(p.at)) : ' &middot; not opened on a tablet yet') +
+      (sc.operator ? ' &middot; operator ' + esc(sc.operator) : '') + '</div><div class="list">' +
+      lines.map(function (l) {
+        var ps = PST[l.status] || [l.status, ''];
+        return '<div class="row"><div class="t"><span>' + esc(l.name) + '</span><span class="pill ' + ps[1] + '">' + esc(ps[0]) + '</span></div>' +
+          '<div class="s"><span>' + esc(l.qty) + ' x ' + esc(l.size) + (l.lot ? ' &middot; LOT ' + esc(l.lot) : '') + '</span><span>' +
+          esc(l.status === 'doing' ? l.step : (l.status === 'done' ? (l.sent ? 'report in GOOS' : 'report NOT sent yet') : '')) + '</span></div></div>';
+      }).join('') + '</div>';
+    if (st && st.cur) {
+      var c = st.cur, t = [['Pre-boil', c.t1], ['Cook', c.t2], ['Hold mid', c.t3], ['Hold end', c.t4]].filter(function (x) { return x[1] != null && x[1] !== ''; });
+      html += '<div class="prev">Open now: <b>' + esc(c.name) + '</b>' + (c.lot ? ' &middot; LOT ' + esc(c.lot) : '') + ' &middot; ' + esc(c.step) +
+        (t.length ? '<br>' + t.map(function (x) { return esc(x[0]) + ' ' + esc(x[1]) + '&deg;C'; }).join(' &middot; ') : '') + '</div>';
+    }
+  });
+  // 3. timeline, newest first; offline overrides and voids stand out
+  var ev = d.events || [];
+  if (ev.length) {
+    html += '<h3 style="margin:18px 2px 8px">What happened</h3><div class="list">' + ev.map(function (e) {
+      return '<div class="row"><div class="t"><span' + (e.flag ? ' style="color:#B3402C;font-weight:700"' : '') + '>' + esc(e.what) + '</span><span>' + esc(e.at) + '</span></div>' +
+        '<div class="s"><span>' + esc(e.recipe) + (e.lot ? ' &middot; LOT ' + esc(e.lot) : '') + '</span></div></div>';
+    }).join('') + '</div>';
+  }
+  var past = ovs.filter(function (o) { return !o.open; });
+  if (past.length) {
+    html += '<h3 style="margin:18px 2px 8px">Overrides</h3><div class="list">' + past.map(function (o) {
+      var st2 = OVST[o.status] || [o.status, ''];
+      return '<div class="row"><div class="t"><span>' + esc(OVW[o.action] || o.action) + '</span><span class="pill ' + st2[1] + '">' + esc(st2[0]) + '</span></div>' +
+        '<div class="s"><span>' + esc(o.recipe || '') + (o.lot ? ' &middot; LOT ' + esc(o.lot) : '') + ' &middot; ' + esc(o.requested_by) + '</span><span>' + esc(o.at) + '</span></div>' +
+        '<div class="prev">' + esc(o.reason) + (o.decided_by ? '<br>Decided by ' + esc(o.decided_by) + (o.note ? ': ' + esc(o.note) : '') : '') + '</div></div>';
+    }).join('') + '</div>';
+  }
+  return html;
+}
+function openOverride(action, id) {
+  var sh = $('sheet');
+  sh.innerHTML = '<div class="box"><h2>' + (action === 'approve' ? 'Approve' : 'Reject') + ' this override</h2>' +
+    '<p class="stamp">' + (action === 'approve'
+      ? 'The tablet carries it out at once: the batch is voided whole under the supervisor\'s name, with the reason kept on the record. Nothing on stock changes.'
+      : 'The batch carries on exactly as it was. The tablet shows your reason.') + '</p>' +
+    (action === 'reject' ? '<label>Reason (required)</label><textarea id="ov-note" rows="2"></textarea>'
+      : '<label>Note (optional)</label><input id="ov-note">') +
+    '<label>Your full name</label><input id="ov-name" autocomplete="name">' +
+    '<label>Your GOOS password</label><input id="ov-pw" type="password" autocomplete="current-password">' +
+    '<div class="err" id="ov-err"></div>' +
+    '<div class="two"><button class="btn ghost" id="ov-cancel" style="margin-top:0">Cancel</button>' +
+    '<button class="btn" id="ov-ok">Sign and ' + (action === 'approve' ? 'approve' : 'reject') + '</button></div></div>';
+  sh.className = 'on';
+  $('ov-cancel').onclick = function () { sh.className = ''; sh.innerHTML = ''; };
+  $('ov-ok').onclick = async function () {
+    var name = $('ov-name').value.trim(), pw = $('ov-pw').value, note = $('ov-note').value.trim(), err = $('ov-err');
+    if (!name || !pw) { err.textContent = 'Type your full name and your password to sign.'; return; }
+    if (action === 'reject' && !note) { err.textContent = 'Type the reason for rejecting.'; return; }
+    $('ov-ok').disabled = true; err.textContent = 'Signing...';
+    try {
+      var salt = await rpc('goos_m_salt', {p_user: S.user});
+      var h = await pbkdf2Hex(pw, String(salt));
+      var r = await rpc('goos_m_tover', {p_token: S.token, p_id: String(id), p_action: action,
+                                          p_name: name, p_hash: h, p_note: note});
+      if (!r.ok) {
+        if (r.error === 'signin') { sh.className = ''; S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+        err.textContent = r.error; $('ov-ok').disabled = false; return;
+      }
+    } catch (e) { err.textContent = 'Could not reach GOOS. Check the internet and try again.'; $('ov-ok').disabled = false; return; }
+    sh.className = ''; sh.innerHTML = '';
+    await refresh();
+  };
 }
 function openSign(action, only) {
   var keys = only || Object.keys(S.sel), n = keys.length;
