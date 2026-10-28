@@ -93,6 +93,10 @@ a.tel{color:var(--navy)}
 .fld input,.fld select,.fld textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .two2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .qline{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.qline{position:relative}
+.mini{border:1px solid var(--line);background:#fff;border-radius:8px;width:32px;height:28px;font-size:12px;color:var(--navy)}
+.ckl{display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:14px}
+.ckl input{width:20px;height:20px}
 .qline .x{float:right;background:none;border:0;color:var(--fail);font-size:20px;line-height:1;padding:0 4px}
 .qline .lt{text-align:right;font-weight:700;margin-top:4px}
 .tot{background:var(--navy);color:#fff;border-radius:14px;padding:12px;margin:10px 0}
@@ -125,7 +129,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.67'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.75'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -135,7 +139,10 @@ var VIEWS = {
 var ORDER = ['dashboard', 'approvals', 'release', 'production', 'quotes', 'orders', 'collections', 'customers',
              'finished', 'lots', 'raw', 'qa'];
 function sortViews(v) {
-  var out = (v || []).slice();
+  /* A screen the server offers but this copy of the app does not know yet
+     (the phone files are older than GOOS) is left out of the menu, rather
+     than opening blank. */
+  var out = (v || []).filter(function (x) { return VIEWS[x]; });
   if (out.indexOf('dashboard') < 0) out.unshift('dashboard');
   out.sort(function (a, b) {
     var x = ORDER.indexOf(a), y = ORDER.indexOf(b);
@@ -262,7 +269,9 @@ function drawHead() {
 function draw() {
   var title = !S.arg ? VIEWS[S.view] :
     S.view === 'quotes' ? (S.arg === 'form' ? (S.qf && S.qf.id ? 'Edit quotation' : 'New quotation') : 'Quotation') :
-    S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : 'Record payment') : 'Order';
+    S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : 'Record payment') :
+    S.view === 'production' ? (S.arg === 'new' ? 'New schedule' : S.arg === 'saved' ? 'Saved schedules' :
+      S.arg.indexOf('edit:') === 0 ? 'Edit schedule' : 'Production') : 'Order';
   S.views = sortViews(S.views);
   var html = '<header><button class="menu" id="menu" aria-label="Menu">&#9776;</button>' +
     (S.arg ? '<button class="back" id="back">&lsaquo;</button>' : '') +
@@ -316,10 +325,17 @@ function draw() {
   });
   /* Production is for watching: it refreshes itself every 20 seconds while
      it is open, but never under a half-typed signature. */
+  if ($('sf-new')) $('sf-new').onclick = function () { S.sf = null; go('production', 'new'); };
+  if ($('sf-saved')) $('sf-saved').onclick = function () { S.sf = null; go('production', 'saved'); };
+  if (S.view === 'production' && S.arg) wireSched();
   clearTimeout(PDT);
-  if (S.view === 'production') PDT = setTimeout(function () {
-    if (S.view === 'production' && $('sheet').className !== 'on') refresh();
-  }, 20000);
+  /* A schedule just sent is watched every 5 seconds until a laptop has
+     built it; otherwise every 20. Never while the form is open. */
+  var waiting = S.view === 'production' && S.data && (S.data.requests || []).some(function (q) {
+    return q.status === 'queued' || q.status === 'working'; });
+  if (S.view === 'production' && !S.arg) PDT = setTimeout(function () {
+    if (S.view === 'production' && !S.arg && $('sheet').className !== 'on') refresh();
+  }, waiting ? 5000 : 20000);
   if (S.view === 'quotes' && S.arg === 'form' && S.data && !S.data.error) wireEditor();
   if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
   if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.data && !S.data.error) wirePay();
@@ -591,6 +607,8 @@ var OVST = {pending: ['Waiting for you', 'bad'], approved: ['Approved', 'ok'], r
             offline: ['OFFLINE - passcode used', 'bad']};
 var PST = {todo: ['Not started', ''], doing: ['In progress', 'warn'], done: ['Done', 'ok']};
 function productionScreen(d) {
+  if (S.arg === 'new' || S.arg.indexOf('edit:') === 0) return schedForm(d);
+  if (S.arg === 'saved') return savedList(d);
   var html = '', day = d.day;
   var days = (d.days || []).slice(0, 7);
   if (days.indexOf(d.today) < 0) days.unshift(d.today);
@@ -598,6 +616,21 @@ function productionScreen(d) {
     return '<button class="chip pd-day' + (x === day ? ' on' : '') + '" data-d="' + esc(x) + '">' +
       (x === d.today ? 'Today' : esc(x.slice(5))) + '</button>';
   }).join('') + '</div>';
+  if (d.can_schedule) html += '<div class="two"><button class="btn" id="sf-new" style="margin:4px 0 10px">+ New schedule</button>' +
+    '<button class="btn ghost" id="sf-saved" style="margin:4px 0 10px">Saved schedules</button></div>';
+  var reqs = d.requests || [];
+  if (reqs.length) {
+    var SQST = {queued: ['Waiting for a laptop', 'warn'], working: ['Being built', 'warn'],
+                done: ['Saved', 'ok'], failed: ['Not saved', 'bad']};
+    html += '<h3 style="margin:10px 2px 8px">Your schedule requests</h3><div class="list">' + reqs.map(function (q) {
+      var st = SQST[q.status] || [q.status, ''];
+      return '<div class="row"><div class="t"><span>' + esc(q.sched_ref || (q.day + ' ' + (q.shift || ''))) + '</span><span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></div>' +
+        '<div class="s"><span>' + esc(q.day) + ' &middot; ' + esc(q.shift || '') + '</span><span>' + esc(q.at) + '</span></div>' +
+        (q.result ? '<div class="prev' + (q.status === 'failed' ? ' prob' : '') + '" style="white-space:pre-wrap">' + esc(q.result) + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+    if (!d.laptops && reqs.some(function (q) { return q.status === 'queued'; }))
+      html += '<div class="banner warn">No GOOS laptop is open right now. The schedule is built and sent to the tablet as soon as one opens.</div>';
+  }
   // 1. overrides waiting - first, because the tablet is stopped until someone answers
   var ovs = d.overrides || [];
   var open = ovs.filter(function (o) { return o.open; });
@@ -655,6 +688,192 @@ function productionScreen(d) {
     }).join('') + '</div>';
   }
   return html;
+}
+/* The Schedule Production tab on the phone (3.99.74, full in 3.99.75). The
+   phone fills the form; a GOOS laptop resizes the recipes, checks raw
+   materials (stock may not go below zero), saves, and sends to the tablet -
+   the same code as the laptop screen, so the rules can never differ. */
+function blankLine() { return {recipe_id: '', qty: '', size: '1L', plan_1l: '', plan_300: '', ded_on: false, ded_customer_id: '', ded_customer: '', ded_qty: ''}; }
+function blankSched(d) {
+  var t = new Date(); t.setDate(t.getDate() + 1);
+  var o = d.opts || {};
+  return {sched_id: '', sched_date: t.toLocaleDateString('en-CA'), shift: (o.shifts || ['Morning'])[0],
+          operator: '', notes: '', prepared_by: d.me || '', lines: [blankLine()]};
+}
+function schedFromSaved(e) {
+  return {sched_id: String(e.id), reference: e.reference, state: e.state, sched_date: e.sched_date, shift: e.shift,
+          operator: e.operator, notes: e.notes, prepared_by: e.prepared_by,
+          lines: (e.lines || []).map(function (l) {
+            return {recipe_id: String(l.recipe_id || ''), qty: l.qty, size: l.size, plan_1l: l.plan_1l, plan_300: l.plan_300,
+                    ded_on: !!l.ded_customer_id, ded_customer_id: l.ded_customer_id ? String(l.ded_customer_id) : '',
+                    ded_customer: l.ded_customer || '', ded_qty: l.ded_qty || ''};
+          })};
+}
+function savedList(d) {
+  var list = (d.saved || []).filter(function (x) { return S.filter === 'all' || x.state !== 'sent'; });
+  return '<div class="banner">Open a schedule to change it, send it again or delete it. Sent schedules are hidden unless you show them.</div>' +
+    chips([['', 'Not sent yet'], ['all', 'All, including sent']]) + rows(list, function (x) {
+      return '<div class="row sv-open" data-id="' + x.id + '" style="cursor:pointer"><div class="t"><span>' + esc(x.reference || '(no reference)') +
+        '</span><span class="pill ' + (x.state === 'sent' ? 'ok' : 'warn') + '">' + (x.state === 'sent' ? 'Sent' : 'Draft') + '</span></div>' +
+        '<div class="s"><span>' + esc(x.sched_date) + ' &middot; ' + esc(x.shift) + ' &middot; ' + esc(x.operator || '-') + '</span><span>' + x.n + ' recipe(s)</span></div>' +
+        '<div class="s"><span>' + esc(x.what || '') + '</span></div></div>';
+    }) + '<button class="btn ghost" id="sf-cancel">Back</button>';
+}
+function schedForm(d) {
+  var o = d.opts;
+  if (!o || !(o.recipes || []).length) return '<div class="banner warn">The recipe list has not reached the phone yet. Open GOOS on any laptop for a minute, then press Refresh.</div>' +
+    '<button class="btn ghost" id="sf-cancel">Back</button>';
+  if (S.arg.indexOf('edit:') === 0 && (!S.sf || S.sf.sched_id !== S.arg.slice(5))) {
+    if (!d.edit) return '<div class="empty">That schedule no longer exists.</div><button class="btn ghost" id="sf-cancel">Back</button>';
+    S.sf = schedFromSaved(d.edit);
+  }
+  if (!S.sf) S.sf = blankSched(d);
+  var f = S.sf, max = o.max || 8, cust = d.customers || [];
+  var recOpts = o.recipes.map(function (x) { return '<option value="' + x[0] + '">' + esc(x[1]) + (x[2] ? ' (' + esc(x[2]) + ')' : '') + '</option>'; }).join('');
+  return (f.sched_id ? '<div class="banner' + (f.state === 'sent' ? ' warn' : '') + '">Editing <b>' + esc(f.reference || '') + '</b>' +
+      (f.state === 'sent' ? ' - already on the tablet. Save &amp; send to give the tablet the changed one.' : '') + '</div>'
+    : '<div class="banner">A GOOS laptop resizes each recipe, checks raw materials and saves it. Check first to see the resized recipes.</div>') +
+    (d.laptops ? '' : '<div class="banner warn">No GOOS laptop is open right now - it is carried out as soon as one opens.</div>') +
+    '<div class="two2">' + fld('Production date', 'sf-date', f.sched_date, 'date') +
+    '<div class="fld"><label for="sf-shift">Shift</label><select id="sf-shift">' + (o.shifts || ['Morning']).map(function (x) {
+      return '<option' + (x === f.shift ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div></div>' +
+    '<datalist id="oplist">' + (o.operators || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+    '<datalist id="custlist2">' + cust.map(function (c) { return '<option value="' + esc(c[1]) + '">'; }).join('') + '</datalist>' +
+    '<div class="two2">' + fld('Scheduled by', 'sf-prep', f.prepared_by) + fld('Operator assigned', 'sf-op', f.operator, 'text', ' list="oplist" autocomplete="off"') + '</div>' +
+    fld('Notes for the tablet (optional)', 'sf-notes', f.notes) +
+    '<h3 style="margin:14px 2px 8px">Recipes (' + f.lines.length + ' of ' + max + ')</h3><div id="sf-lines">' +
+    f.lines.map(function (l, i) {
+      return '<div class="qline"><button class="x" data-srm="' + i + '" aria-label="Remove">&times;</button>' +
+        '<div class="two" style="position:absolute;right:44px;top:8px;gap:4px">' +
+        (i > 0 ? '<button class="mini" data-sup="' + i + '" aria-label="Move up">&#9650;</button>' : '') +
+        (i < f.lines.length - 1 ? '<button class="mini" data-sdn="' + i + '" aria-label="Move down">&#9660;</button>' : '') + '</div>' +
+        '<div class="fld"><label>Recipe ' + (i + 1) + '</label><select data-sf="recipe_id" data-i="' + i + '"><option value="">Choose...</option>' +
+        recOpts.replace('value="' + l.recipe_id + '"', 'value="' + l.recipe_id + '" selected') + '</select></div>' +
+        '<div class="two2"><div class="fld"><label>Bottles to make</label><input inputmode="numeric" data-sf="qty" data-i="' + i + '" value="' + esc(l.qty) + '"></div>' +
+        '<div class="fld"><label>Size</label><select data-sf="size" data-i="' + i + '">' + (o.sizes || ['1L', '300ml']).map(function (z) {
+          return '<option' + (z === l.size ? ' selected' : '') + '>' + esc(z) + '</option>'; }).join('') + '</select></div></div>' +
+        '<div class="two2"><div class="fld"><label>Pack 1L (optional)</label><input inputmode="numeric" data-sf="plan_1l" data-i="' + i + '" value="' + esc(l.plan_1l) + '"></div>' +
+        '<div class="fld"><label>Pack 300ml (optional)</label><input inputmode="numeric" data-sf="plan_300" data-i="' + i + '" value="' + esc(l.plan_300) + '"></div></div>' +
+        '<label class="ckl"><input type="checkbox" data-sfck="' + i + '"' + (l.ded_on ? ' checked' : '') + '> Dedicate part of this batch to a customer</label>' +
+        (l.ded_on ? '<div class="two2"><div class="fld"><label>Customer</label><input data-sf="ded_customer" data-i="' + i + '" list="custlist2" autocomplete="off" value="' + esc(l.ded_customer) + '"></div>' +
+          '<div class="fld"><label>Bottles for them</label><input inputmode="numeric" data-sf="ded_qty" data-i="' + i + '" value="' + esc(l.ded_qty) + '"></div></div>' : '') +
+        '</div>';
+    }).join('') + '</div>' +
+    (f.lines.length < max ? '<button class="btn ghost" id="sf-add" style="margin-top:0">+ Add a recipe</button>' : '') +
+    '<div class="err" id="sf-err"></div>' +
+    '<button class="btn ghost" id="sf-check">Check stock &amp; preview</button>' +
+    '<div class="two"><button class="btn ghost" id="sf-save">Save only</button>' +
+    '<button class="btn" id="sf-send">Save &amp; send to tablet</button></div>' +
+    (f.sched_id ? '<button class="btn ghost" id="sf-del" style="color:#B3402C">Delete this schedule</button>' : '') +
+    '<button class="btn ghost" id="sf-cancel">Cancel</button>';
+}
+function wireSched() {
+  var f = S.sf, d = S.data || {};
+  if ($('sf-cancel')) $('sf-cancel').onclick = function () { S.sf = null; go('production'); };
+  Array.prototype.forEach.call(document.querySelectorAll('.sv-open'), function (el) {
+    el.onclick = function () { S.sf = null; go('production', 'edit:' + el.dataset.id); };
+  });
+  if (!f || !$('sf-date')) return;
+  var cust = d.customers || [];
+  var keep = function () {
+    f.sched_date = $('sf-date').value; f.shift = $('sf-shift').value; f.prepared_by = $('sf-prep').value;
+    f.operator = $('sf-op').value; f.notes = $('sf-notes').value;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sf]'), function (e) {
+      f.lines[e.dataset.i][e.dataset.sf] = e.value;
+    });
+    f.lines.forEach(function (l) {
+      if (!l.ded_on) { l.ded_customer_id = ''; return; }
+      var c = cust.find(function (x) { return x[1] === l.ded_customer; });
+      l.ded_customer_id = c ? String(c[0]) : '';
+    });
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('#sf-lines input, #sf-lines select, #sf-date, #sf-shift, #sf-op, #sf-notes, #sf-prep'), function (e) {
+    if (e.type !== 'checkbox') { e.onchange = keep; e.oninput = keep; }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-sfck]'), function (e) {
+    e.onchange = function () { keep(); f.lines[e.dataset.sfck].ded_on = e.checked; draw(); };
+  });
+  var mv = function (i, j) { keep(); var t = f.lines[i]; f.lines[i] = f.lines[j]; f.lines[j] = t; draw(); };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-sup]'), function (b) { b.onclick = function () { mv(Number(b.dataset.sup), Number(b.dataset.sup) - 1); }; });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-sdn]'), function (b) { b.onclick = function () { mv(Number(b.dataset.sdn), Number(b.dataset.sdn) + 1); }; });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-srm]'), function (b) {
+    b.onclick = function () { keep(); f.lines.splice(Number(b.dataset.srm), 1);
+      if (!f.lines.length) f.lines.push(blankLine()); draw(); };
+  });
+  if ($('sf-add')) $('sf-add').onclick = function () { keep(); f.lines.push(blankLine()); draw(); };
+  var check = function () {
+    var err = $('sf-err');
+    if (!f.sched_date) { err.textContent = 'Set the production date.'; return false; }
+    if (!f.operator.trim()) { err.textContent = 'Assign an operator - the tablet shows who is responsible.'; return false; }
+    for (var i = 0; i < f.lines.length; i++) {
+      var l = f.lines[i];
+      if (!l.recipe_id) { err.textContent = 'Choose a recipe on line ' + (i + 1) + '.'; return false; }
+      if (!(Number(l.qty) > 0)) { err.textContent = 'Type how many bottles to make on line ' + (i + 1) + '.'; return false; }
+      if (l.ded_on) {
+        if (!l.ded_customer_id) { err.textContent = 'Pick the customer on line ' + (i + 1) + ' from the list.'; return false; }
+        if (!(Number(l.ded_qty) > 0) || Number(l.ded_qty) > Number(l.qty)) { err.textContent = 'Bottles for the customer on line ' + (i + 1) + ' must be between 1 and ' + l.qty + '.'; return false; }
+      }
+    }
+    return true;
+  };
+  var send = async function (action, btn) {
+    keep();
+    var err = $('sf-err');
+    if (action !== 'delete' && !check()) return;
+    var data = JSON.parse(JSON.stringify(f)); data.action = action;
+    data.lines.forEach(function (l) { if (!l.ded_on) { l.ded_customer_id = ''; l.ded_qty = ''; } });
+    btn.disabled = true; err.textContent = action === 'check' ? 'Asking a GOOS laptop...' : 'Sending...';
+    try {
+      var r = await rpc('goos_m_sched', {p_token: S.token, p_data: JSON.stringify(data)});
+      if (!r.ok) {
+        if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+        err.textContent = r.error; btn.disabled = false; return;
+      }
+      if (action === 'check') { btn.disabled = false; err.textContent = ''; waitPreview(r.id, 0); return; }
+    } catch (e) { err.textContent = 'Could not reach GOOS. Check the internet and try again.'; btn.disabled = false; return; }
+    S.sf = null;
+    await go('production');
+  };
+  $('sf-check').onclick = function () { send('check', $('sf-check')); };
+  $('sf-save').onclick = function () { send('save', $('sf-save')); };
+  $('sf-send').onclick = function () { send('send', $('sf-send')); };
+  if ($('sf-del')) $('sf-del').onclick = function () {
+    if (confirm('Delete ' + (f.reference || 'this schedule') + ' permanently?' + (f.state === 'sent' ? '\n\nIt was already sent: the tablet keeps the copy it has until a new schedule is sent.' : ''))) send('delete', $('sf-del'));
+  };
+}
+/* The stock check is worked out by a laptop, so the answer is waited for
+   here - every 2 seconds, for up to a minute - and shown in a sheet. */
+async function waitPreview(id, n) {
+  var sh = $('sheet');
+  sh.className = 'on';
+  sh.innerHTML = '<div class="box"><h2>Checking...</h2><p class="stamp">A GOOS laptop is resizing the recipes and checking raw materials.</p><button class="btn ghost" id="pv-x">Close</button></div>';
+  $('pv-x').onclick = function () { sh.className = ''; sh.innerHTML = ''; n = 999; };
+  var r = null;
+  try { r = await rpc('goos_m_schedreq', {p_token: S.token, p_id: String(id)}); } catch (e) { r = null; }
+  if (sh.className !== 'on') return;
+  if (!r || !r.ok || r.status === 'queued' || r.status === 'working') {
+    if (n >= 30) {
+      sh.innerHTML = '<div class="box"><h2>No answer yet</h2><p class="stamp">' + (r && r.ok && !r.laptops ? 'No GOOS laptop is open right now, so nothing can check the stock.' : 'The laptop did not answer in time.') +
+        ' You can still Save - it is checked again when it is built.</p><button class="btn" id="pv-x">OK</button></div>';
+      $('pv-x').onclick = function () { sh.className = ''; sh.innerHTML = ''; };
+      return;
+    }
+    setTimeout(function () { waitPreview(id, n + 1); }, 2000);
+    return;
+  }
+  var p = r.preview || {lines: []}, ok = r.status === 'checked';
+  sh.innerHTML = '<div class="box" style="max-height:85vh;overflow:auto"><h2>' + (ok ? 'Enough raw materials' : 'Not enough') + '</h2>' +
+    (ok ? '' : '<p class="prob" style="white-space:pre-wrap">' + esc(r.result) + '</p>') +
+    p.lines.map(function (l) {
+      return '<h3 style="margin:12px 0 4px">' + esc(l.name) + ' &middot; ' + esc(l.qty) + ' x ' + esc(l.size) + '</h3>' +
+        '<div class="s" style="font-size:12px;color:#6b7280">Recipe resized x' + esc(l.factor) +
+        (l.dedicate ? ' &middot; ' + esc(l.dedicate.qty) + ' for ' + esc(l.dedicate.customer) : '') + '</div>' +
+        '<table class="det" style="font-size:13px">' + (l.ingredients || []).map(function (g) {
+          return '<tr><td>' + esc(g[0]) + '</td><td style="text-align:right">' + num(g[2]) + ' ' + esc(g[3] || '') + '</td></tr>';
+        }).join('') + '</table>';
+    }).join('') +
+    '<button class="btn" id="pv-x" style="margin-top:12px">OK</button></div>';
+  $('pv-x').onclick = function () { sh.className = ''; sh.innerHTML = ''; };
 }
 function openOverride(action, id) {
   var sh = $('sheet');
