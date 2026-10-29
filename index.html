@@ -135,7 +135,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.89'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.91'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -303,7 +303,7 @@ function draw() {
   Array.prototype.forEach.call(document.querySelectorAll('[data-go]'), function (el) {
     el.onclick = function () {
       var p = el.dataset.go.split(':');
-      if (S.views.indexOf(p[0]) >= 0) go(p[0], p[1] || '');
+      if (S.views.indexOf(p[0]) >= 0) go(p[0], p.slice(1).join(':'));
     };
   });
   var s = $('q');
