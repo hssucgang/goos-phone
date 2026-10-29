@@ -129,7 +129,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.75'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.87'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -629,7 +629,7 @@ function productionScreen(d) {
         (q.result ? '<div class="prev' + (q.status === 'failed' ? ' prob' : '') + '" style="white-space:pre-wrap">' + esc(q.result) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
     if (!d.laptops && reqs.some(function (q) { return q.status === 'queued'; }))
-      html += '<div class="banner warn">No GOOS laptop is open right now. The schedule is built and sent to the tablet as soon as one opens.</div>';
+      html += '<div class="banner warn">No GOOS laptop is working on phone requests right now. The schedule is built and sent to the tablet as soon as one is.' + workerNote(d) + '</div>';
   }
   // 1. overrides waiting - first, because the tablet is stopped until someone answers
   var ovs = d.overrides || [];
@@ -693,6 +693,23 @@ function productionScreen(d) {
    phone fills the form; a GOOS laptop resizes the recipes, checks raw
    materials (stock may not go below zero), saves, and sends to the tablet -
    the same code as the laptop screen, so the rules can never differ. */
+/* Which laptops last carried out phone work, and whether their GOOS is new
+   enough to build schedules - so "no laptop" can be traced to one machine. */
+function workerNote(d) {
+  var w = d.workers || [];
+  if (!w.length) return '';
+  return '<br><span style="font-size:13px">Laptops seen today: ' + w.map(function (x) {
+    var v = x.version || 'older than 3.99.84';
+    var old = !x.version || verLess(x.version, '3.99.74');
+    return esc(x.user || x.machine) + ' (' + (x.ago < 120 ? 'now' : Math.round(x.ago / 60) + ' min ago') +
+      ', GOOS ' + esc(v) + (old ? ' - too old for phone schedules, update it' : '') + ')';
+  }).join('; ') + '</span>';
+}
+function verLess(a, b) {
+  var x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); }
+  return false;
+}
 function blankLine() { return {recipe_id: '', qty: '', size: '1L', plan_1l: '', plan_300: '', ded_on: false, ded_customer_id: '', ded_customer: '', ded_qty: ''}; }
 function blankSched(d) {
   var t = new Date(); t.setDate(t.getDate() + 1);
