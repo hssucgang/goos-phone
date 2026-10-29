@@ -118,6 +118,12 @@ a.tel{color:var(--navy)}
 .paper .r{text-align:right;white-space:nowrap}
 .paper .gt td{font-weight:800;font-size:15px;border-top:2px solid #1F2A4A}
 .paper .sig{margin-top:34px;border-top:1px solid #1F2A4A;width:60%;font-size:11px;padding-top:3px}
+.paper .due{background:#FDF6E7;border:1px solid #EFDDB4;border-radius:6px;padding:8px 10px;text-align:right;margin:8px 0}
+.paper .due b{display:block;font-size:20px}
+.paper .ag{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:6px 0}
+.paper .ag div{border:1px solid #E4DCCB;border-radius:5px;padding:4px 6px;font-size:11px}
+.paper .ag b{display:block;font-size:12px}
+.paper .ag .w{background:#FFFBF2}.paper .ag .o{background:#FFF6EF}.paper .ag .x{background:#FDF1EF}
 #print{display:none}
 @media print{
  #app,#sheet,nav,header{display:none!important}
@@ -129,7 +135,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.87'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.89'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -269,7 +275,8 @@ function drawHead() {
 function draw() {
   var title = !S.arg ? VIEWS[S.view] :
     S.view === 'quotes' ? (S.arg === 'form' ? (S.qf && S.qf.id ? 'Edit quotation' : 'New quotation') : 'Quotation') :
-    S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : 'Record payment') :
+    S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : S.arg === 'soa' ? 'Statements of account' :
+      S.arg.indexOf('soa:') === 0 ? 'Statement of account' : 'Record payment') :
     S.view === 'production' ? (S.arg === 'new' ? 'New schedule' : S.arg === 'saved' ? 'Saved schedules' :
       S.arg.indexOf('edit:') === 0 ? 'Edit schedule' : 'Production') : 'Order';
   S.views = sortViews(S.views);
@@ -338,7 +345,8 @@ function draw() {
   }, waiting ? 5000 : 20000);
   if (S.view === 'quotes' && S.arg === 'form' && S.data && !S.data.error) wireEditor();
   if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
-  if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.data && !S.data.error) wirePay();
+  if (S.view === 'collections' && S.arg.indexOf('soa:') === 0 && S.data && !S.data.error) wireSoa();
+  else if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.arg !== 'soa' && S.data && !S.data.error) wirePay();
   if ($('q-new')) $('q-new').onclick = function () { S.qf = null; go('quotes', 'form'); };
   if ($('do-no')) $('do-no').onclick = function () { openSign('reject'); };
 }
@@ -413,6 +421,8 @@ var SCREENS = {
   },
   collections: function (d) {
     if (S.arg === 'mine') return myPayments(d);
+    if (S.arg === 'soa') return soaList(d);
+    if (S.arg.indexOf('soa:') === 0) return soaView(d);
     if (S.arg) return payScreen(d);
     var list = d.filter(function (o) { return hit(o, ['customer_name', 'reference', 'agent']); });
     var tot = list.reduce(function (a, o) { return a + Number(o.owed); }, 0);
@@ -420,7 +430,8 @@ var SCREENS = {
     if (S.arg === 'mine') return myPayments(d);
     if (S.arg) return payScreen(d);
     return '<div class="sum">Still owed<br><b>' + peso(tot) + '</b><br><span style="font-size:13px">over 30 days: ' + peso(over) + '</span></div>' +
-      '<button class="btn ghost" style="margin:0 0 10px" data-go="collections:mine">Payments you recorded</button>' +
+      '<div class="bar2"><button class="btn ghost" style="margin:0 0 10px" data-go="collections:soa">Statements of account</button>' +
+      '<button class="btn ghost" style="margin:0 0 10px" data-go="collections:mine">Payments you recorded</button></div>' +
       '<p class="stamp">Tap an order to record a payment.</p>' +
       search('Search customer, order or agent') + rows(list, function (o) {
         var cls = o.age > 90 ? 'bad' : (o.age > 30 ? 'warn' : '');
@@ -1121,6 +1132,108 @@ async function shareQuoteImage(d) {
     var file = new File([blob], name, {type: 'image/png'});
     if (navigator.canShare && navigator.canShare({files: [file]})) {
       await navigator.share({files: [file], title: d.quote.reference});
+      msg.textContent = '';
+    } else {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      msg.textContent = 'Picture saved to your Downloads.';
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') { msg.textContent = ''; return; }
+    msg.textContent = 'Could not make the picture here - use Save as PDF, or take a screenshot.';
+  }
+}
+function soaList(d) {
+  var list = d.filter(function (c) { return hit(c, ['name', 'agent']); });
+  return '<p class="stamp">Customers with unpaid invoices. Tap one to send their statement.</p>' +
+    search('Search customer or agent') + rows(list, function (c) {
+      var cls = c.age > 90 ? 'bad' : (c.age > 30 ? 'warn' : '');
+      return '<div class="row tap" data-go="collections:soa:' + c.id + '"><div class="t"><span>' + esc(c.name) + '</span><span>' + peso(c.owed) +
+        '</span></div><div class="s"><span>' + c.open_n + ' unpaid &middot; ' + esc(c.agent) + '</span><span class="pill ' + cls + '">oldest ' + c.age + ' days</span></div></div>';
+    });
+}
+function soaNo(d) { return d.today.replace(/-/g, '') + '-SOA-' + ('0000' + d.customer.id).slice(-5); }
+function longDate(v) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || ''));
+  if (!m) return String(v || '-');
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m[2]) - 1] + ' ' + m[3] + ', ' + m[1];
+}
+function soaDoc(d) {
+  /* The same statement GOOS on the laptop exports with "unpaid only":
+     company block, who it is for, the balance due, the aging, then each
+     unpaid invoice with what was paid on it and a running balance. */
+  var c = d.customer, co = d.company || {}, rs = d.rows || [];
+  var addr = [co.co_street, co.co_city, co.co_province, co.co_zip].filter(Boolean).join(', ');
+  var contact = [co.co_email ? 'Email: ' + co.co_email : '', co.co_phone ? 'Tel ' + co.co_phone : '',
+                 co.co_mobile ? 'Mobile ' + co.co_mobile : ''].filter(Boolean).join(' &middot; ');
+  var due = 0, b = {a: 0, w: 0, o: 0, x: 0}, run = 0;
+  rs.forEach(function (r) {
+    due += Number(r.bal);
+    b[r.age > 90 ? 'x' : r.age > 60 ? 'o' : r.age > 30 ? 'w' : 'a'] += Number(r.bal);
+  });
+  var meta = [['Statement no.', soaNo(d)], ['As of', longDate(d.today)], ['Terms', c.terms], ['Billed to', c.company_name || c.trade_name],
+              ['Address', c.address], ['Contact', [c.contact, c.mobile].filter(Boolean).join(' ')], ['TIN', c.tin]].filter(function (m) { return m[1]; });
+  var body = rs.map(function (r) {
+    run += Number(r.total);
+    var h = '<tr><td>' + esc(longDate(r.day)) + '</td><td><b>' + esc(r.si_no || r.reference || '-') + '</b>' +
+      (r.dr_no ? '<div class="sm">DR ' + esc(r.dr_no) + '</div>' : '') + '<div class="sm">' + r.age + ' days</div></td>' +
+      '<td class="r">' + pesoP(r.total) + '</td><td class="r"></td><td class="r">' + pesoP(run) + '</td></tr>';
+    if (Number(r.paid) > 0.009) {
+      run -= Number(r.paid);
+      h += '<tr><td></td><td class="sm">Payment received</td><td></td><td class="r">(' + pesoP(r.paid) + ')</td><td class="r">' + pesoP(run) + '</td></tr>';
+    }
+    return h;
+  }).join('');
+  return '<div class="paper" id="sdoc"><div class="hd"><div><div class="co">' + esc(co.co_name || co.pr_company || 'GRAIN OLA') + '</div>' +
+    (addr ? '<div class="sm">' + esc(addr) + '</div>' : '') + (contact ? '<div class="sm">' + contact + '</div>' : '') +
+    (co.co_tin ? '<div class="sm">VAT-REG TIN ' + esc(co.co_tin) + '</div>' : '') + '</div>' +
+    '<div class="dt"><img src="logo.png" alt="" onerror="this.remove()">STATEMENT OF ACCOUNT</div></div>' +
+    '<h1>' + esc(c.trade_name) + '</h1><div class="sm">Unpaid invoices only</div><div class="mt">' + meta.map(function (m) {
+      return '<div><b>' + esc(m[0]) + '</b> ' + esc(m[1]) + '</div>';
+    }).join('') + '</div>' +
+    '<div class="due">Balance due<b>PHP ' + pesoP(due) + '</b></div>' +
+    '<div class="ag"><div><b>' + pesoP(b.a) + '</b>1-30 days</div><div class="w"><b>' + pesoP(b.w) + '</b>31-60 days</div>' +
+    '<div class="o"><b>' + pesoP(b.o) + '</b>61-90 days</div><div class="x"><b>' + pesoP(b.x) + '</b>Over 90 days</div></div>' +
+    '<table><tr><th>Date</th><th>SI / Reference</th><th class="r">Charges</th><th class="r">Payments</th><th class="r">Balance</th></tr>' +
+    (body || '<tr><td colspan="5">No unpaid invoices.</td></tr>') +
+    '<tr class="gt"><td colspan="4">BALANCE DUE</td><td class="r">PHP ' + pesoP(due) + '</td></tr></table>' +
+    '<p class="sm">Kindly make checks payable to <b>' + esc(co.co_name || co.pr_company || 'Grain Ola') + '</b>. If your records differ ' +
+    'from this statement, please let us know so we can reconcile them with you.</p>' +
+    '<div class="sm">Prepared by ' + esc(d.by) + '</div></div>';
+}
+function soaView(d) {
+  if (!d.customer) return '<div class="empty">That customer is no longer there.</div>';
+  if (!(d.rows || []).length) return '<div class="empty">' + esc(d.customer.trade_name) + ' has no unpaid invoices.</div>';
+  return '<div class="bar2"><button class="btn" id="s-img">Share as picture</button>' +
+    '<button class="btn ghost" id="s-pdf" style="margin-top:0">Save as PDF</button></div>' +
+    '<div class="err" id="s-msg"></div>' + soaDoc(d);
+}
+function wireSoa() {
+  var d = S.data;
+  if (!$('s-img')) return;
+  var name = 'SOA ' + soaNo(d) + ' - ' + d.customer.trade_name;
+  $('s-pdf').onclick = function () {
+    $('print').innerHTML = soaDoc(d);
+    var old = document.title; document.title = name;
+    window.print(); document.title = old;
+  };
+  $('s-img').onclick = function () { shareDocImage(soaDoc(d), name, $('s-msg')); };
+}
+async function shareDocImage(html, title, msg) {
+  msg.textContent = 'Making the picture...';
+  try {
+    if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    var box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff';
+    box.innerHTML = html;
+    document.body.appendChild(box);
+    var canvas = await window.html2canvas(box.firstChild, {scale: 2, backgroundColor: '#ffffff', useCORS: true});
+    box.remove();
+    var name = title.replace(/[^A-Za-z0-9 ._-]/g, '') + '.png';
+    var blob = await new Promise(function (ok) { canvas.toBlob(ok, 'image/png'); });
+    var file = new File([blob], name, {type: 'image/png'});
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      await navigator.share({files: [file], title: title});
       msg.textContent = '';
     } else {
       var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
