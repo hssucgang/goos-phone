@@ -135,7 +135,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.104'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.110'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -244,6 +244,9 @@ async function signOut() {
 /* ------------------------------------------------------------------ data */
 async function go(view, arg) {
   S.view = view; S.arg = arg || ''; S.q = ''; S.filter = ''; S.sel = {};
+  /* 3.99.106 - remembered for this tab, so pulling down to refresh reopens
+     the same screen instead of the Dashboard */
+  try { sessionStorage.setItem('goos_here', JSON.stringify({v: S.view, a: S.arg})); } catch (e) {}
   S.data = null; draw(); await refresh();
 }
 async function refresh() {
@@ -1452,7 +1455,49 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
   navigator.serviceWorker.register('sw.js').catch(function () {});
 }
 load();
-if (S.token) go('dashboard'); else drawLogin('');
+/* 3.99.106 - a pull-to-refresh reloads the page: open the screen that was
+   showing. A half-typed form is not restored (its typing is gone), so the
+   screen it belongs to opens instead. */
+(function () {
+  if (!S.token) { drawLogin(''); return; }
+  var h = null;
+  try { h = JSON.parse(sessionStorage.getItem('goos_here') || 'null'); } catch (e) {}
+  var ok = h && h.v && (h.v === 'dashboard' || (S.views || []).indexOf(h.v) >= 0);
+  if (!ok) { go('dashboard'); return; }
+  var a = String(h.a || '');
+  if (a === 'form' || a === 'new' || a.indexOf('edit:') === 0) a = '';
+  go(h.v, a);
+})();
+/* THE PHONE'S BACK BUTTON (3.99.106): steps back inside the app - closes a
+   sheet, leaves a detail for its list, goes from any screen to the
+   Dashboard - and on the Dashboard asks before leaving GOOS. */
+var leaving = false;
+try { history.replaceState({goos: 'base'}, ''); history.pushState({goos: 'app'}, ''); } catch (e) {}
+function exitAsk() {
+  var sh = $('sheet');
+  sh.innerHTML = '<div class="box"><h2>Exit GOOS?</h2><p>Are you sure you want to exit?</p>' +
+    '<div class="bar2"><button class="btn ghost" id="ex-no" style="margin-top:0">Stay</button>' +
+    '<button class="btn" id="ex-yes" style="margin-top:0">Exit</button></div></div>';
+  sh.className = 'on';
+  $('ex-no').onclick = function () { sh.className = ''; sh.innerHTML = ''; };
+  $('ex-yes').onclick = function () {
+    sh.className = ''; sh.innerHTML = ''; leaving = true;
+    try { history.go(-1); } catch (e) {}
+    setTimeout(function () { try { window.close(); } catch (e) {} }, 300);
+  };
+}
+window.addEventListener('popstate', function () {
+  if (leaving) return;
+  try { history.pushState({goos: 'app'}, ''); } catch (e) {}
+  var sh = $('sheet');
+  if (sh && sh.className === 'on') { sh.className = ''; sh.innerHTML = ''; return; }
+  var nav = $('nav');
+  if (nav && nav.classList.contains('on')) { nav.classList.remove('on'); if ($('scrim')) $('scrim').classList.remove('on'); return; }
+  if (!S.token) { exitAsk(); return; }
+  if (S.arg) { go(S.view); return; }
+  if (S.view !== 'dashboard') { go('dashboard'); return; }
+  exitAsk();
+});
 // Coming back to the app after a while opens on the Dashboard again.
 var hiddenAt = 0;
 document.addEventListener('visibilitychange', function () {
