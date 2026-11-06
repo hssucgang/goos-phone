@@ -135,7 +135,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.110'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.112'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -243,6 +243,9 @@ async function signOut() {
 
 /* ------------------------------------------------------------------ data */
 async function go(view, arg) {
+  /* 3.99.112 - a receipt remembers the screen it was opened from, so Back
+     returns to that statement or payment, not the top of Collections */
+  if (String(arg || '').indexOf('rcpt:') === 0) S.rback = (view === S.view) ? S.arg : '';
   S.view = view; S.arg = arg || ''; S.q = ''; S.filter = ''; S.sel = {};
   /* 3.99.106 - remembered for this tab, so pulling down to refresh reopens
      the same screen instead of the Dashboard */
@@ -279,6 +282,7 @@ function draw() {
   var title = !S.arg ? VIEWS[S.view] :
     S.view === 'quotes' ? (S.arg === 'form' ? (S.qf && S.qf.id ? 'Edit quotation' : 'New quotation') : 'Quotation') :
     S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : S.arg === 'soa' ? 'Statements of account' :
+      S.arg.indexOf('rcpt:') === 0 ? 'Receipt' :
       S.arg.indexOf('soa:') === 0 ? 'Statement of account' : 'Record payment') :
     S.view === 'production' ? (S.arg === 'new' ? 'New schedule' : S.arg === 'saved' ? 'Saved schedules' :
       S.arg.indexOf('edit:') === 0 ? 'Edit schedule' : 'Production') : 'Order';
@@ -299,7 +303,7 @@ function draw() {
   var shut = function () { $('nav').classList.remove('on'); $('scrim').classList.remove('on'); };
   $('menu').onclick = function () { $('nav').classList.toggle('on'); $('scrim').classList.toggle('on'); };
   $('scrim').onclick = shut;
-  if ($('back')) $('back').onclick = function () { go(S.view); };
+  if ($('back')) $('back').onclick = function () { goUp(); };
   Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
     b.onclick = function () { shut(); b.dataset.v === '__out' ? signOut() : go(b.dataset.v); };
   });
@@ -349,6 +353,7 @@ function draw() {
   if (S.view === 'quotes' && S.arg === 'form' && S.data && !S.data.error) wireEditor();
   if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
   if (S.view === 'collections' && S.arg.indexOf('soa:') === 0 && S.data && !S.data.error) wireSoa();
+  else if (S.view === 'collections' && S.arg.indexOf('rcpt:') === 0 && S.data && !S.data.error) wireRcpt();
   else if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.arg !== 'soa' && S.data && !S.data.error) wirePay();
   if ($('q-new')) $('q-new').onclick = function () { S.qf = null; go('quotes', 'form'); };
   if ($('do-no')) $('do-no').onclick = function () { openSign('reject'); };
@@ -425,6 +430,7 @@ var SCREENS = {
   collections: function (d) {
     if (S.arg === 'mine') return myPayments(d);
     if (S.arg === 'soa') return soaList(d);
+    if (S.arg.indexOf('rcpt:') === 0) return rcptView(d);
     if (S.arg.indexOf('soa:') === 0) return soaView(d);
     if (S.arg) return payScreen(d);
     var list = d.filter(function (o) { return hit(o, ['customer_name', 'reference', 'agent']); });
@@ -1178,7 +1184,7 @@ function soaDoc(d) {
               ['Address', c.address], ['Contact', [c.contact, c.mobile].filter(Boolean).join(' ')], ['TIN', c.tin]].filter(function (m) { return m[1]; });
   var body = rs.map(function (r) {
     run += Number(r.total);
-    var h = '<tr><td>' + esc(longDate(r.day)) + '</td><td><b>' + esc(r.si_no || r.reference || '-') + '</b>' +
+    var h = '<tr><td>' + esc(longDate(r.day)) + '</td><td data-rc="' + r.id + '"><b>' + esc(r.si_no || r.reference || '-') + '</b>' +
       (r.dr_no ? '<div class="sm">DR ' + esc(r.dr_no) + '</div>' : '') + '<div class="sm">' + r.age + ' days</div></td>' +
       '<td class="r">' + pesoP(r.total) + '</td><td class="r"></td><td class="r">' + pesoP(run) + '</td></tr>';
     if (Number(r.paid) > 0.009) {
@@ -1221,6 +1227,47 @@ function wireSoa() {
     window.print(); document.title = old;
   };
   $('s-img').onclick = function () { shareDocImage(soaDoc(d), name, $('s-msg')); };
+  /* 3.99.112 - tap an SI / DR in the statement for that order's receipt */
+  [].forEach.call(document.querySelectorAll('#sdoc [data-rc]'), function (td) {
+    td.style.cursor = 'pointer';
+    td.onclick = function () { go('collections', 'rcpt:' + td.getAttribute('data-rc')); };
+  });
+}
+function rcptDoc(d) {
+  var o = d.order, co = d.company || {}, ls = d.lines || [];
+  var vat = !/(non|exempt)/i.test(co.co_vat_type || 'vat registered');
+  var tot = Number(o.total || 0), net = vat ? tot / 1.12 : tot;
+  return '<div class="paper" id="rdoc"><div class="hd"><div><div class="co">' + esc(co.co_name || co.pr_company || 'GRAIN OLA') + '</div></div>' +
+    '<div class="dt"><img src="logo.png" alt="" onerror="this.remove()">SALES INVOICE</div></div>' +
+    '<h1>' + esc(o.customer_name) + '</h1><div class="mt">' +
+    [['SI no.', o.si_no || '-'], ['DR no.', o.dr_no || '-'], ['Order', o.reference], ['Date', longDate(o.day)],
+     ['Payment', o.payment_method || '-']].map(function (m) {
+      return '<div><b>' + esc(m[0]) + '</b> ' + esc(m[1]) + '</div>'; }).join('') + '</div>' +
+    '<table><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr>' +
+    ls.map(function (l) { return '<tr><td>' + esc(l.item) + '</td><td class="r">' + Number(l.qty) +
+      '</td><td class="r">' + pesoP(l.price) + '</td><td class="r">' + pesoP(l.amount) + '</td></tr>'; }).join('') +
+    (vat ? '<tr><td colspan="3">VATable sales</td><td class="r">' + pesoP(net) + '</td></tr>' +
+           '<tr><td colspan="3">VAT 12%</td><td class="r">' + pesoP(tot - net) + '</td></tr>' : '') +
+    '<tr class="gt"><td colspan="3">TOTAL</td><td class="r">PHP ' + pesoP(tot) + '</td></tr>' +
+    '<tr><td colspan="3">Paid</td><td class="r">' + pesoP(o.paid) + '</td></tr>' +
+    '<tr><td colspan="3"><b>Balance</b></td><td class="r"><b>' + pesoP(tot - Number(o.paid || 0)) + '</b></td></tr></table>' +
+    (o.notes ? '<p class="sm">' + esc(o.notes) + '</p>' : '') + '</div>';
+}
+function rcptView(d) {
+  if (!d.order) return '<div class="empty">That order is no longer there.</div>';
+  return '<div class="bar2"><button class="btn" id="r-img">Share as picture</button>' +
+    '<button class="btn ghost" id="r-pdf" style="margin-top:0">Save as PDF</button></div>' +
+    '<div class="err" id="r-msg"></div>' + rcptDoc(d);
+}
+function wireRcpt() {
+  var d = S.data;
+  if (!$('r-img')) return;
+  var name = 'Invoice ' + (d.order.si_no || d.order.reference) + ' - ' + d.order.customer_name;
+  $('r-pdf').onclick = function () {
+    $('print').innerHTML = rcptDoc(d);
+    var old = document.title; document.title = name; window.print(); document.title = old;
+  };
+  $('r-img').onclick = function () { shareDocImage(rcptDoc(d), name, $('r-msg')); };
 }
 async function shareDocImage(html, title, msg) {
   msg.textContent = 'Making the picture...';
@@ -1378,7 +1425,9 @@ function payScreen(d) {
   var pend = Number(d.pending || 0), owed = Math.round((Number(o.total) - Number(o.paid) - pend) * 100) / 100;
   var accts = d.accounts || [];
   var html = '<div class="sum">' + esc(o.customer_name) + '<br><b>' + peso(Math.max(owed, 0)) + '</b> still owed<br><span style="font-size:13px">' +
-    esc(o.reference) + ' &middot; total ' + peso(o.total) + ' &middot; paid ' + peso(o.paid) + '</span></div>';
+    esc(o.reference) + ' &middot; total ' + peso(o.total) + ' &middot; paid ' + peso(o.paid) + '</span></div>' +
+    '<button class="btn ghost" style="margin:0 0 10px" data-go="collections:rcpt:' + o.id + '">View receipt' +
+    (o.si_no ? ' (SI ' + esc(o.si_no) + ')' : '') + '</button>';
   if (pend > 0) html += '<div class="banner warn">' + peso(pend) + ' recorded on a phone is waiting to be posted.</div>';
   if (!d.laptops) html += '<div class="banner warn">No GOOS laptop is open right now. The payment is kept safely and posted as soon as one opens.</div>';
   if (o.state !== 'dispatched' && o.state !== 'recorded') return html + '<div class="empty">Only delivered orders take payments.</div>';
@@ -1494,10 +1543,14 @@ window.addEventListener('popstate', function () {
   var nav = $('nav');
   if (nav && nav.classList.contains('on')) { nav.classList.remove('on'); if ($('scrim')) $('scrim').classList.remove('on'); return; }
   if (!S.token) { exitAsk(); return; }
-  if (S.arg) { go(S.view); return; }
+  if (S.arg) { goUp(); return; }
   if (S.view !== 'dashboard') { go('dashboard'); return; }
   exitAsk();
 });
+function goUp() {
+  if (S.arg.indexOf('rcpt:') === 0 && S.rback) { go(S.view, S.rback); return; }
+  go(S.view);
+}
 // Coming back to the app after a while opens on the Dashboard again.
 var hiddenAt = 0;
 document.addEventListener('visibilitychange', function () {
