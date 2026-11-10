@@ -104,6 +104,18 @@ a.tel{color:var(--navy)}
 .tot .g{font-size:20px;font-weight:800;margin-top:4px}
 .bar2{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .bar2 .btn{flex:1 1 140px;width:auto}
+.aiqk{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.aiqk .btn{margin:0;padding:10px 8px;font-size:14px}
+.ai-you{margin:14px 0 4px;font-weight:700;color:#4B5BB0}
+.ai-a{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 13px;
+ overflow-wrap:anywhere}
+.ai-a h3{font-size:16px;margin:12px 0 4px}.ai-a h3:first-child{margin-top:2px}
+.ai-a ul,.ai-a ol{padding-left:20px;margin:4px 0}.ai-a li{margin:3px 0}.ai-a p{margin:6px 0}
+.ai-tb{overflow-x:auto;margin:6px 0}.ai-tb table{border-collapse:collapse;font-size:13px}
+.ai-tb td,.ai-tb th{border:1px solid var(--line);padding:4px 6px;text-align:left}
+.ai-meta{font-size:12px;color:var(--muted);margin:4px 2px}
+.ai-ask textarea{width:100%;min-height:76px;padding:11px;border:1px solid var(--line);
+ border-radius:12px;background:#fff;font:inherit}
 .paper{background:#fff;color:#1F2A4A;border:1px solid var(--line);border-radius:6px;padding:16px;font-size:13px;line-height:1.4}
 .paper .hd{display:flex;justify-content:space-between;gap:10px;border-bottom:3px solid #1F2A4A;padding-bottom:8px}
 .paper .co{font-size:17px;font-weight:800}
@@ -135,14 +147,15 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.112'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.118'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
-  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval', release: 'Batch Release', production: 'Production'
+  raw: 'Raw Materials', qa: 'QA', approvals: 'For Approval', release: 'Batch Release', production: 'Production',
+  advisor: 'Strategy Advisor'
 };
 // Menu order: Dashboard first, then what most often needs a decision.
-var ORDER = ['dashboard', 'approvals', 'release', 'production', 'quotes', 'orders', 'collections', 'customers',
+var ORDER = ['dashboard', 'approvals', 'advisor', 'release', 'production', 'quotes', 'orders', 'collections', 'customers',
              'finished', 'lots', 'raw', 'qa'];
 function sortViews(v) {
   /* A screen the server offers but this copy of the app does not know yet
@@ -285,7 +298,8 @@ function draw() {
       S.arg.indexOf('rcpt:') === 0 ? 'Receipt' :
       S.arg.indexOf('soa:') === 0 ? 'Statement of account' : 'Record payment') :
     S.view === 'production' ? (S.arg === 'new' ? 'New schedule' : S.arg === 'saved' ? 'Saved schedules' :
-      S.arg.indexOf('edit:') === 0 ? 'Edit schedule' : 'Production') : 'Order';
+      S.arg.indexOf('edit:') === 0 ? 'Edit schedule' : 'Production') :
+    S.view === 'advisor' ? (S.arg === 'past' ? 'Past answers' : 'Answer') : 'Order';
   S.views = sortViews(S.views);
   var html = '<header><button class="menu" id="menu" aria-label="Menu">&#9776;</button>' +
     (S.arg ? '<button class="back" id="back">&lsaquo;</button>' : '') +
@@ -356,6 +370,7 @@ function draw() {
   else if (S.view === 'collections' && S.arg.indexOf('rcpt:') === 0 && S.data && !S.data.error) wireRcpt();
   else if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.arg !== 'soa' && S.data && !S.data.error) wirePay();
   if ($('q-new')) $('q-new').onclick = function () { S.qf = null; go('quotes', 'form'); };
+  if (S.view === 'advisor' && S.data && !S.data.error) wireAi();
   if ($('do-no')) $('do-no').onclick = function () { openSign('reject'); };
 }
 function search(ph) { return '<input id="q" class="search" placeholder="' + esc(ph) + '">'; }
@@ -502,12 +517,222 @@ var SCREENS = {
   approvals: function (d) { return approvalsScreen(d); },
   release: function (d) { return releaseScreen(d); },
   production: function (d) { return productionScreen(d); },
+  advisor: function (d) {
+    if (S.arg === 'past') return aiPast(d);
+    if (S.arg) return aiOne(d);
+    return aiScreen(d);
+  },
   quotes: function (d) {
     if (S.arg === 'form') return quoteEditor(d);
     if (S.arg) return quoteView(d);
     return quoteList(d);
   }
 };
+/* ------------------------------------------------ STRATEGY ADVISOR (3.99.117)
+   The CEO's AI advisor. The phone asks Claude itself, so it works with every
+   laptop closed: GOOS gives it the key the CEO chose to share and the
+   business snapshot a laptop last worked out (the same one the laptop's
+   advisor sends). The conversation is kept for this tab, so a pull-to-refresh
+   does not lose it, and every answer is saved to GOOS's Past answers. */
+var AI_BILLING = 'https://platform.claude.com/settings/billing';
+var AI = {log: [], busy: false, draft: '', err: '', credit: false, note: ''};
+try {
+  var _ail = JSON.parse(sessionStorage.getItem('goos_ai') || 'null');
+  if (_ail && _ail.length) AI.log = _ail;
+} catch (e) {}
+function aiKeep() { try { sessionStorage.setItem('goos_ai', JSON.stringify(AI.log.slice(-12))); } catch (e) {} }
+function mdInline(t) {
+  return esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<b>$1</b>');
+}
+function md(text) {
+  /* The advisor writes simple markdown; this is just enough of it -
+     headings, bullets, numbered lists, bold and tables - and everything
+     is escaped first, so nothing in an answer can run as code. */
+  var out = [], list = '', tb = [];
+  function endList() { if (list) { out.push('</' + list + '>'); list = ''; } }
+  function endTable() {
+    if (!tb.length) return;
+    out.push('<div class="ai-tb"><table>' + tb.map(function (r, i) {
+      var tag = i === 0 ? 'th' : 'td';
+      return '<tr>' + r.map(function (c) { return '<' + tag + '>' + mdInline(c) + '</' + tag + '>'; }).join('') + '</tr>';
+    }).join('') + '</table></div>');
+    tb = [];
+  }
+  String(text || '').split('\n').forEach(function (raw) {
+    var l = raw.replace(/\s+$/, ''), m;
+    if (/^\s*\|.*\|\s*$/.test(l)) {
+      endList();
+      if (/^\s*\|[\s:|-]+\|\s*$/.test(l)) return;
+      tb.push(l.trim().replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); }));
+      return;
+    }
+    endTable();
+    if (!l.trim()) { endList(); return; }
+    if ((m = l.match(/^\s*#{1,6}\s+(.*)$/))) { endList(); out.push('<h3>' + mdInline(m[1].replace(/\*\*/g, '')) + '</h3>'); return; }
+    if ((m = l.match(/^\s*[-*\u2022]\s+(.*)$/))) {
+      if (list !== 'ul') { endList(); out.push('<ul>'); list = 'ul'; }
+      out.push('<li>' + mdInline(m[1]) + '</li>'); return;
+    }
+    if ((m = l.match(/^\s*\d+[.)]\s+(.*)$/))) {
+      if (list !== 'ol') { endList(); out.push('<ol>'); list = 'ol'; }
+      out.push('<li>' + mdInline(m[1]) + '</li>'); return;
+    }
+    if (/^\s*(-{3,}|_{3,})\s*$/.test(l)) { endList(); return; }
+    endList(); out.push('<p>' + mdInline(l) + '</p>');
+  });
+  endList(); endTable();
+  return out.join('');
+}
+function aiScreen(d) {
+  if (!d.ready) return '<div class="banner warn"><b>Not switched on for the phone yet.</b><br>' +
+    'On the CEO laptop: General Settings - Strategy Advisor (AI) - tick ' +
+    '<b>Use it on my GOOS phone too</b> - Save. Then press Refresh here.</div>' + aiPastBlock(d);
+  var h = '<div class="ai-meta">Figures as of <b>' + esc(d.brief_at || 'not yet') + '</b>' +
+    (d.asked_fresh ? ' - newer figures asked for' + (d.laptops ? ', ready in about a minute' : ' (no GOOS laptop is open)') : '') +
+    ' &middot; ' + esc(d.model || '') + '</div>' +
+    '<div class="bar2"><button class="btn ghost" id="ai-fresh" style="margin-top:0">Get latest figures</button>' +
+    (AI.log.length ? '<button class="btn ghost" id="ai-new" style="margin-top:0">New conversation</button>' : '') + '</div>';
+  if (!d.brief_at) h += '<div class="banner warn">GOOS has not worked out the business figures for the phone yet. ' +
+    'Open GOOS on any laptop for a minute, then press Refresh.</div>';
+  if (!AI.log.length) {
+    h += '<div class="ai-meta">Ask anything about the business, or tap a topic:</div><div class="aiqk">' +
+      (d.quick || []).map(function (x, i) { return '<button class="btn ghost aiq" data-i="' + i + '">' + esc(x[0]) + '</button>'; }).join('') + '</div>';
+  }
+  AI.log.forEach(function (m, i) {
+    h += '<div class="ai-you">YOU: ' + esc(m.label || m.q) + '</div>';
+    if (m.a) h += '<div class="ai-a">' + md(m.a) + '</div><div class="ai-meta">' + esc(m.meta || '') +
+      ' &middot; <a href="#" class="ai-copy" data-i="' + i + '">Copy</a></div>';
+    else h += '<div class="ai-a"><i>Thinking - a full answer can take a minute or two. Keep GOOS open on this screen.</i></div>';
+  });
+  if (AI.err) h += '<div class="banner warn">' + esc(AI.err) +
+    (AI.credit ? '<div class="bar2"><a class="btn" href="' + AI_BILLING + '" target="_blank" rel="noopener" style="margin-top:0;text-align:center;text-decoration:none">Reload AI credits</a></div>' : '') + '</div>';
+  if (AI.note) h += '<div class="ai-meta">' + esc(AI.note) + '</div>';
+  h += '<div class="ai-ask"><textarea id="ai-q" placeholder="Ask the advisor...">' + esc(AI.draft) + '</textarea>' +
+    '<button class="btn" id="ai-go"' + (AI.busy ? ' disabled' : '') + '>' + (AI.busy ? 'Thinking...' : 'Ask') + '</button></div>';
+  return h + aiPastBlock(d);
+}
+function aiRow(r) {
+  return '<div class="row tap" data-go="advisor:' + r.id + '"><div class="t"><span>' + esc(r.question) + '</span></div>' +
+    '<div class="s">' + esc(r.at || '') + ' &middot; ' + esc(r.model || '') + '</div></div>';
+}
+function aiPastBlock(d) {
+  var p = d.past || [];
+  if (!p.length) return '';
+  return '<h3 style="margin:22px 0 6px">Past answers</h3>' + rows(p, aiRow) +
+    '<button class="btn ghost" data-go="advisor:past">All past answers</button>';
+}
+function aiPast(d) {
+  var p = d.past || [];
+  if (!p.length) return '<div class="empty">No questions asked yet.</div>';
+  return search('Search questions') + rows(p.filter(function (r) { return hit(r, ['question', 'at', 'model']); }), aiRow);
+}
+function aiOne(d) {
+  var r = d.one;
+  if (!r) return '<div class="empty">That answer is no longer there.</div>';
+  return '<div class="ai-meta">' + esc(r.at || '') + ' &middot; ' + esc(r.model || '') + '</div>' +
+    '<div class="ai-you">YOU: ' + esc(r.question) + '</div><div class="ai-a">' + md(r.answer) + '</div>' +
+    '<div class="bar2"><button class="btn ghost" id="ai-copy1" style="margin-top:0">Copy</button>' +
+    '<button class="btn" id="ai-cont" style="margin-top:0">Continue this conversation</button></div>';
+}
+function aiCopy(t) {
+  try { navigator.clipboard.writeText(t); AI.note = 'Copied.'; } catch (e) { AI.note = 'Could not copy here.'; }
+}
+function wireAi() {
+  if (S.arg && S.arg !== 'past') {
+    var r = S.data.one;
+    if (r && $('ai-copy1')) $('ai-copy1').onclick = function () { aiCopy(r.answer); $('ai-copy1').textContent = 'Copied'; };
+    if (r && $('ai-cont')) $('ai-cont').onclick = function () {
+      AI.log = [{q: r.question, a: r.answer, meta: r.at + ' - ' + r.model}]; AI.err = ''; aiKeep(); go('advisor');
+    };
+    return;
+  }
+  if (S.arg) return;
+  var q = $('ai-q');
+  if (q) q.oninput = function () { AI.draft = q.value; };
+  if ($('ai-go')) $('ai-go').onclick = function () { askAi((q.value || '').trim()); };
+  Array.prototype.forEach.call(document.querySelectorAll('.aiq'), function (b) {
+    b.onclick = function () { var x = (S.data.quick || [])[+b.dataset.i]; if (x) askAi(x[1], x[0]); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.ai-copy'), function (a) {
+    a.onclick = function (ev) { ev.preventDefault(); var m = AI.log[+a.dataset.i]; if (m) { aiCopy(m.a); draw(); } };
+  });
+  if ($('ai-new')) $('ai-new').onclick = function () { AI.log = []; AI.err = ''; AI.note = ''; aiKeep(); draw(); };
+  if ($('ai-fresh')) $('ai-fresh').onclick = async function () {
+    $('ai-fresh').textContent = 'Asking...';
+    try {
+      var r = await rpc('goos_m_ai', {p_token: S.token, p_action: 'refresh', p_data: ''});
+      AI.note = !r.ok ? r.error : r.laptops ? 'Asked an open GOOS laptop for the latest figures - press Refresh in a minute.' :
+        'No GOOS laptop is open right now. The figures update when one opens.';
+    } catch (e) { AI.note = 'Could not reach GOOS.'; }
+    refresh();
+  };
+}
+async function askAi(q, label) {
+  if (AI.busy || !q) return;
+  AI.busy = true; AI.err = ''; AI.credit = false; AI.note = '';
+  var hist = AI.log.filter(function (m) { return m.a; }).slice(-8);
+  var mine = {q: q, label: label || '', a: ''};
+  AI.log.push(mine); AI.draft = ''; draw();
+  window.scrollTo(0, document.body.scrollHeight);
+  try {
+    var st = await rpc('goos_m_ai', {p_token: S.token, p_action: 'start', p_data: ''});
+    if (!st.ok) {
+      if (st.error === 'signin') { AI.busy = false; S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+      throw new Error(st.error === 'setup' ? 'The advisor is not switched on for the phone (laptop: General Settings - Strategy Advisor).' :
+        st.error === 'nobrief' ? 'GOOS has not worked out the business figures yet - open GOOS on a laptop for a minute, then ask again.' : st.error);
+    }
+    var p = st.pack || {}, msgs = [];
+    hist.forEach(function (m) { msgs.push({role: 'user', content: m.q}); msgs.push({role: 'assistant', content: m.a}); });
+    msgs.push({role: 'user', content: q});
+    var body = {model: st.model, max_tokens: 16000,
+      system: [{type: 'text', text: p.system || ''},
+               {type: 'text', text: 'GOOS BUSINESS DATA (JSON, figures in PHP):\n' + (p.brief || '{}'),
+                cache_control: {type: 'ephemeral'}}],
+      messages: msgs};
+    if (String(st.model).indexOf('haiku') < 0) { body.thinking = {type: 'adaptive'}; body.output_config = {effort: 'medium'}; }
+    var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 300000);
+    var res;
+    try {
+      res = await fetch(AI_URL, {method: 'POST', signal: ctl.signal,
+        headers: {'x-api-key': st.key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json',
+                  'anthropic-dangerous-direct-browser-access': 'true'},
+        body: JSON.stringify(body)});
+    } finally { clearTimeout(tm); st.key = ''; }
+    var j = {};
+    try { j = await res.json(); } catch (e) {}
+    if (!res.ok) {
+      var em = (j.error && j.error.message) || ('error ' + res.status);
+      if (res.status === 402 || /credit balance|billing/i.test(em)) {
+        AI.credit = true;
+        throw new Error('The Anthropic account is out of credit. Reload it, then ask again.');
+      }
+      throw new Error('The AI service answered ' + res.status + ': ' + em +
+        (res.status === 401 ? ' - the key is wrong or was revoked; save a new one on the laptop.' :
+         res.status === 429 ? ' - too many questions at once; wait a minute.' : ''));
+    }
+    var text = (j.content || []).filter(function (c) { return c.type === 'text'; })
+      .map(function (c) { return c.text; }).join('').trim();
+    if (!text && j.stop_reason === 'max_tokens') text = '(The AI ran out of room while thinking and wrote no answer. Ask again with a narrower question.)';
+    var u = j.usage || {};
+    var tin = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+    mine.a = text || '(no answer)';
+    mine.meta = st.model + ' - ' + tin.toLocaleString() + ' tokens in, ' + (u.output_tokens || 0).toLocaleString() + ' out';
+    aiKeep();
+    try {
+      await rpc('goos_m_ai', {p_token: S.token, p_action: 'save',
+        p_data: JSON.stringify({q: mine.q, a: mine.a, model: st.model, tin: tin, tout: u.output_tokens || 0})});
+    } catch (e) {}
+  } catch (e) {
+    AI.log.pop(); AI.draft = q;
+    AI.err = e && e.name === 'AbortError' ? 'No answer after 5 minutes - try a narrower question.' :
+      (e && e.name === 'TypeError' && /fetch/i.test(e.message || '')) ? 'Could not reach the AI service - check the internet, then ask again.' :
+      String((e && e.message) || e);
+  } finally {
+    AI.busy = false;
+    if (S.view === 'advisor' && !S.arg) draw();
+  }
+}
+var AI_URL = 'https://api.anthropic.com/v1/messages';
 function orderDetail(d) {
   var o = d.order;
   if (!o) return '<div class="empty">That order is no longer there.</div>';
@@ -1119,34 +1344,95 @@ function wireQuoteView() {
     } catch (e) { $('q-msg').textContent = 'Could not reach GOOS.'; }
   };
 }
-function loadScript(src) {
+function loadScript(src, ms) {
+  /* 3.99.113: never waits for ever - a script that has not arrived in `ms`
+     (default 15 s) counts as failed, so the screen can say so */
   return new Promise(function (ok, bad) {
     var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = bad;
+    setTimeout(function () { bad(new Error('timeout')); }, ms || 15000);
     document.head.appendChild(s);
   });
 }
+/* THE PICTURE, DRAWN ON THE PHONE ITSELF (3.99.113). It used to wait for a
+   drawing library from the internet (html2canvas) - on a slow or filtered
+   connection that meant minutes of "Making the picture...". Now the page's
+   own styles and the document are drawn straight into an image by the
+   browser: no download, a second or two. The library is only the fallback. */
+var _logoData = null;
+async function logoDataUrl() {
+  if (_logoData !== null) return _logoData;
+  try {
+    var b = await (await fetch('logo.png')).blob();
+    _logoData = await new Promise(function (ok) {
+      var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.onerror = function () { ok(''); };
+      fr.readAsDataURL(b);
+    });
+  } catch (e) { _logoData = ''; }
+  return _logoData;
+}
+async function docToCanvas(html, width) {
+  var css = [].map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
+  var logo = await logoDataUrl();
+  html = logo ? html.split('src="logo.png"').join('src="' + logo + '"') : html.split('<img src="logo.png"').join('<img data-x="1"');
+  var box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + width + 'px;background:#fff';
+  box.innerHTML = html;
+  document.body.appendChild(box);
+  var h = Math.ceil(box.firstChild.getBoundingClientRect().height) + 2;
+  var st = document.createElement('style'); st.textContent = css + '\nbody{margin:0}';
+  box.insertBefore(st, box.firstChild);
+  var bs = getComputedStyle(document.body);
+  box.style.cssText = 'width:' + width + 'px;background:#fff;font-family:' + bs.fontFamily +
+    ';color:' + bs.color + ';font-size:' + bs.fontSize + ';line-height:' + bs.lineHeight;
+  var xml = new XMLSerializer().serializeToString(box);
+  box.remove();
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + h + '">' +
+            '<foreignObject x="0" y="0" width="100%" height="100%">' + xml + '</foreignObject></svg>';
+  var img = new Image();
+  await new Promise(function (ok, bad) {
+    img.onload = ok; img.onerror = bad;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+  var scale = 2, c = document.createElement('canvas');
+  c.width = width * scale; c.height = h * scale;
+  var g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+  g.scale(scale, scale); g.drawImage(img, 0, 0);
+  return c;
+}
+async function makePicture(html) {
+  try {
+    var c = await docToCanvas(html, 760);
+    var b = await new Promise(function (ok) { c.toBlob(ok, 'image/png'); });
+    if (b) return b;
+  } catch (e) { /* fall back below */ }
+  if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 15000);
+  var box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff';
+  box.innerHTML = html;
+  document.body.appendChild(box);
+  try {
+    var canvas = await window.html2canvas(box.firstChild, {scale: 2, backgroundColor: '#ffffff',
+                                                          useCORS: true, imageTimeout: 4000, logging: false});
+    return await new Promise(function (ok) { canvas.toBlob(ok, 'image/png'); });
+  } finally { box.remove(); }
+}
+async function sharePicture(blob, title, msg) {
+  var name = title.replace(/[^A-Za-z0-9 ._-]/g, '') + '.png';
+  var file = new File([blob], name, {type: 'image/png'});
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    msg.textContent = '';
+    await navigator.share({files: [file], title: title});
+  } else {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    msg.textContent = 'Picture saved to your Downloads.';
+  }
+}
 async function shareQuoteImage(d) {
-  /* drawn at a fixed A4-ish width so the picture looks the same on every phone */
   var msg = $('q-msg'); msg.textContent = 'Making the picture...';
   try {
-    if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    var box = document.createElement('div');
-    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff';
-    box.innerHTML = quoteDoc(d);
-    document.body.appendChild(box);
-    var canvas = await window.html2canvas(box.firstChild, {scale: 2, backgroundColor: '#ffffff', useCORS: true});
-    box.remove();
-    var name = (d.quote.reference + ' - ' + d.quote.customer_name).replace(/[^A-Za-z0-9 ._-]/g, '') + '.png';
-    var blob = await new Promise(function (ok) { canvas.toBlob(ok, 'image/png'); });
-    var file = new File([blob], name, {type: 'image/png'});
-    if (navigator.canShare && navigator.canShare({files: [file]})) {
-      await navigator.share({files: [file], title: d.quote.reference});
-      msg.textContent = '';
-    } else {
-      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
-      msg.textContent = 'Picture saved to your Downloads.';
-    }
+    var blob = await makePicture(quoteDoc(d));
+    await sharePicture(blob, d.quote.reference + ' - ' + d.quote.customer_name, msg);
   } catch (e) {
     if (e && e.name === 'AbortError') { msg.textContent = ''; return; }
     msg.textContent = 'Could not make the picture here - use Save as PDF, or take a screenshot.';
@@ -1272,24 +1558,8 @@ function wireRcpt() {
 async function shareDocImage(html, title, msg) {
   msg.textContent = 'Making the picture...';
   try {
-    if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    var box = document.createElement('div');
-    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff';
-    box.innerHTML = html;
-    document.body.appendChild(box);
-    var canvas = await window.html2canvas(box.firstChild, {scale: 2, backgroundColor: '#ffffff', useCORS: true});
-    box.remove();
-    var name = title.replace(/[^A-Za-z0-9 ._-]/g, '') + '.png';
-    var blob = await new Promise(function (ok) { canvas.toBlob(ok, 'image/png'); });
-    var file = new File([blob], name, {type: 'image/png'});
-    if (navigator.canShare && navigator.canShare({files: [file]})) {
-      await navigator.share({files: [file], title: title});
-      msg.textContent = '';
-    } else {
-      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
-      msg.textContent = 'Picture saved to your Downloads.';
-    }
+    var blob = await makePicture(html);
+    await sharePicture(blob, title, msg);
   } catch (e) {
     if (e && e.name === 'AbortError') { msg.textContent = ''; return; }
     msg.textContent = 'Could not make the picture here - use Save as PDF, or take a screenshot.';
@@ -1555,7 +1825,7 @@ function goUp() {
 var hiddenAt = 0;
 document.addEventListener('visibilitychange', function () {
   if (document.hidden) { hiddenAt = Date.now(); return; }
-  if (S.token && hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.arg) go('dashboard');
+  if (S.token && hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.arg && !AI.busy) go('dashboard');
 });
 </script>
 </body></html>
