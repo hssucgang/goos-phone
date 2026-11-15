@@ -147,7 +147,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.138'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.139'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -1416,16 +1416,37 @@ async function makePicture(html) {
     return await new Promise(function (ok) { canvas.toBlob(ok, 'image/png'); });
   } finally { box.remove(); }
 }
+// 3.99.139 - Android only opens the share sheet within a few seconds of a
+// tap. Making the picture (logo, layout, a long statement) can take longer,
+// so the share was refused and the phone said it could not make the picture
+// even though the picture was ready. Now a refused share offers a button to
+// tap - a fresh tap is allowed to share - and a save to Downloads.
+function savePicture(blob, name, msg) {
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  msg.textContent = 'Picture saved to your Downloads.';
+}
 async function sharePicture(blob, title, msg) {
   var name = title.replace(/[^A-Za-z0-9 ._-]/g, '') + '.png';
   var file = new File([blob], name, {type: 'image/png'});
-  if (navigator.canShare && navigator.canShare({files: [file]})) {
+  if (!(navigator.canShare && navigator.canShare({files: [file]}))) {
+    savePicture(blob, name, msg);
+    return;
+  }
+  try {
     msg.textContent = '';
     await navigator.share({files: [file], title: title});
-  } else {
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    msg.textContent = 'Picture saved to your Downloads.';
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;          // closed the share sheet
+    msg.textContent = 'The picture is ready. ';
+    var b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = 'Tap to share it';
+    var b2 = document.createElement('button'); b2.className = 'btn ghost'; b2.textContent = 'Save to phone';
+    b1.onclick = function () {
+      navigator.share({files: [file], title: title}).then(function () { msg.textContent = ''; },
+        function (e2) { if (!e2 || e2.name !== 'AbortError') savePicture(blob, name, msg); });
+    };
+    b2.onclick = function () { savePicture(blob, name, msg); };
+    msg.appendChild(b1); msg.appendChild(b2);
   }
 }
 async function shareQuoteImage(d) {
