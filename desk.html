@@ -74,7 +74,7 @@ tr.click { cursor: pointer; } tr.click:hover td { background: #FAF9F5; }
 .ok { padding: 13px 18px; border-radius: 14px; background: #E3EEE6; color: #1F5A37; }
 .empty { color: var(--muted); padding: 18px 0; }
 .drawer-bg { position: fixed; inset: 0; background: rgba(24,35,63,.35); display: flex; justify-content: flex-end; z-index: 9; }
-.drawer { width: min(520px, 100%); height: 100%; background: #fff; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.drawer { width: min(680px, 100%); height: 100%; background: #fff; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
 .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--navy); }
 .login { background: #fff; border-radius: 18px; padding: 32px; width: min(380px, 92vw); display: flex; flex-direction: column; gap: 12px; }
 .login h2 { margin: 0; font-size: 24px; color: var(--navy); }
@@ -85,18 +85,39 @@ tr.click { cursor: pointer; } tr.click:hover td { background: #FAF9F5; }
 .fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .fl input, .fl select { padding: 9px 11px; border: 1px solid #D5D3CA; border-radius: 10px; color: var(--ink); background: #fff; }
 .btn.sm { padding: 5px 10px; font-size: 12px; }
+/* 3.99.161 - phone-size screens: the menu folds into a top bar */
+.mtop { display: none; }
+.frame { width: 100%; border: 0; border-radius: 16px; background: #FAF5EA; min-height: calc(100vh - 150px); }
+@media (max-width: 760px) {
+  .shell { display: block; }
+  .mtop { display: flex; align-items: center; gap: 12px; background: var(--navy); color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 8; }
+  .mtop b { font-size: 17px; } .mtop button { background: none; border: 0; color: #fff; font-size: 22px; cursor: pointer; }
+  .side { position: fixed; left: 0; top: 0; z-index: 10; height: 100vh; transform: translateX(-105%); transition: transform .2s; width: 250px; overflow-y: auto; }
+  .side.open { transform: none; box-shadow: 0 0 0 100vmax rgba(24,35,63,.35); }
+  .main { padding: 16px 14px 32px; }
+  h1 { font-size: 23px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi .v { font-size: 20px; }
+  .grid2, .form { grid-template-columns: 1fr; }
+  .board { grid-template-columns: repeat(5, 78vw); }
+  .lotrow { grid-template-columns: 1fr; gap: 8px; }
+  .search { min-width: 0; width: 100%; }
+  table { display: block; overflow-x: auto; }
+  .drawer { padding: 18px 14px; }
+  .frame { min-height: calc(100vh - 120px); border-radius: 0; }
+}
 @media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .side { width: 190px; } .lotrow { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
-/* GOOS Web (3.99.158) - the laptop-browser face of GOOS. It reads the
+/* GOOS Web (3.99.161) - the laptop-browser face of GOOS. It reads the
    SAME server functions as the phone app (goos_m_*), so it shows exactly what
    GOOS shows and needs nothing new on the server. Changes that move stock or
    money stay in desktop GOOS for now: those rules live there once, and a
    second copy here would drift. */
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.158'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.161'};
 var PESO = '\u20b1';
 var S = {token: '', name: '', user: '', role: '', views: []};
 var V = {page: 'dashboard', arg: '', agent: '', q: '', cache: {}};
@@ -121,7 +142,11 @@ function prettyDay(s) {
   if (n === 0) return 'Today'; if (n === -1) return 'Tomorrow'; if (n === 1) return 'Yesterday';
   return d.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'});
 }
-function save() { try { localStorage.setItem('goos_web', JSON.stringify(S)); } catch (e) {} }
+function save() {
+  try { localStorage.setItem('goos_web', JSON.stringify(S)); } catch (e) {}
+  /* the phone screens shown inside this page read their sign-in from here */
+  try { localStorage.setItem('goos_phone', JSON.stringify({token: S.token, name: S.name, user: S.user, views: S.views})); } catch (e) {}
+}
 function load() { try { var v = JSON.parse(localStorage.getItem('goos_web') || '{}');
   S.token = v.token || ''; S.name = v.name || ''; S.user = v.user || ''; S.role = v.role || ''; S.views = v.views || []; } catch (e) {} }
 function can(v) { return S.role === 'CEO' || (S.views || []).indexOf(v) >= 0; }
@@ -187,17 +212,25 @@ async function signOut() {
 }
 
 /* ---------------------------------------------------------------- frame */
-var NAV = [['dashboard', 'Dashboard', '\u25a3'], ['approvals', 'For approval', '\u2713'], ['orders', 'Orders', '\u25a4'],
-           ['customers', 'Customers', '\u263a'], ['lots', 'Lots & Expiry', '\u25d4']];
+var NAV = [['dashboard', 'Dashboard', '\u25a3'], ['approvals', 'For approval', '\u2713'], ['advisor', 'Strategy Advisor', '\u2605'],
+           ['production', 'Production', '\u2699'], ['quotes', 'Quotations', '\u270e'], ['orders', 'Orders', '\u25a4'],
+           ['collections', 'Collections', '\u20b1'], ['customers', 'Customers', '\u263a'], ['finished', 'Finished Goods', '\u25a6'],
+           ['lots', 'Lots & Expiry', '\u25d4'], ['raw', 'Raw Materials', '\u25a7'], ['qa', 'QA', '\u2714']];
+/* 3.99.161 - the phone app's screens GOOS Web has not rebuilt yet open the
+   phone's own screen inside this page, signed in, so everything the phone
+   does is here too. One by one they are rebuilt in the web's own layout. */
+var EMBEDDED = {advisor: 1, production: 1, quotes: 1, collections: 1, finished: 1, raw: 1, qa: 1};
 function frame(inner) {
   var nav = NAV.filter(function (n) { return n[0] === 'dashboard' || can(n[0]); }).map(function (n) {
     return '<button class="nav' + (V.page === n[0] ? ' on' : '') + '" data-go="' + n[0] + '"><span>' + n[2] + '</span>' + esc(n[1]) + '</button>';
   }).join('');
-  $('app').innerHTML = '<div class="shell"><aside class="side"><div class="brand">GRAIN OLA<small>GOOS Web</small></div><div class="rule"></div>' +
+  $('app').innerHTML = '<div class="mtop"><button id="burger" aria-label="Menu">\u2630</button><b>GOOS</b></div><div class="shell"><aside class="side" id="side"><div class="brand">GRAIN OLA<small>GOOS Web</small></div><div class="rule"></div>' +
     nav + '<div class="me"><b>' + esc(S.name) + '</b><span>' + esc(S.role) + '</span>' +
     '<button id="out">Sign out</button><div class="foot" style="color:#AEB6C8;margin-top:8px">GOOS Web ' + esc(CFG.version) + '</div></div></aside>' +
     '<main class="main" id="main">' + inner + '</main></div>';
   $('out').onclick = signOut;
+  $('burger').onclick = function (e) { e.stopPropagation(); $('side').classList.toggle('open'); };
+  $('side').onclick = function (e) { if (e.target === $('side')) $('side').classList.remove('open'); };
   wire(document);
 }
 function wire(root) {
@@ -226,6 +259,7 @@ async function go(page, arg) {
   try {
     if (page === 'orders') await pageOrders();
     else if (page === 'approvals') await pageApprovals();
+    else if (EMBEDDED[page]) pageEmbedded(page);
     else if (page === 'customers' && V.arg) await pageCustomer(V.arg);
     else if (page === 'customers') await pageCustomers();
     else if (page === 'lots') await pageLots();
@@ -333,17 +367,22 @@ async function pageOrders() {
   var cols = COLS.map(function (c) {
     var list = groups[c[0]], sum = list.reduce(function (s, o) {
       return s + (c[0] === 'unpaid' || c[0] === 'overdue' ? Number(o.total || 0) - Number(o.paid || 0) : Number(o.total || 0)); }, 0);
-    return '<section class="col"><div class="colh"><span><i style="background:' + c[2] + '"></i>' + esc(c[1]) + '</span><span class="mut">' + list.length + '</span></div>' +
+    return '<section class="col" data-col="' + c[0] + '"><div class="colh"><span><i style="background:' + c[2] + '"></i>' + esc(c[1]) + '</span><span class="mut">' + list.length + '</span></div>' +
       '<div class="mut" style="padding:0 4px">' + money0(sum) + '</div>' +
       (list.map(function (o) { return ocard(o, c[0]); }).join('') || '<div class="empty" style="padding:8px 4px">None</div>') + '</section>';
   }).join('');
   var chips = '<span class="chip' + (!V.agent ? ' on' : '') + '" data-agent="">All agents</span>' + agents.map(function (a) {
     return '<span class="chip' + (V.agent === a ? ' on' : '') + '" data-agent="' + esc(a) + '">' + esc(a) + '</span>'; }).join('') +
     '<span class="chip' + (onlyOwed ? ' on' : '') + '" data-owed="1">Only unpaid</span>';
-  $('main').innerHTML = head('Sales', 'Orders') +
+  var jobsH = await orderJobs();
+  $('main').innerHTML = head('Sales', 'Orders', can('orders') ? '<button class="btn dark" id="new-ord">+ New order</button>' : '') + jobsH +
     '<div class="row" style="flex-wrap:wrap"><div class="chips">' + chips + '</div><input class="search" id="q" placeholder="Search customer or reference" value="' + esc(V.q) + '"></div>' +
     '<div class="board">' + cols + '</div>' +
-    '<div class="foot">The newest 200 orders. Paid shows the last ' + paidCut + ' days. Orders are created, confirmed and dispatched in desktop GOOS or on the phone, so the stock and lot rules run in one place.</div>';
+    '<div class="foot">The newest 200 orders. Paid shows the last ' + paidCut + ' days. Drag a card one column on (New \u2192 Confirmed \u2192 Delivered) or click it to confirm, dispatch or cancel. An open GOOS laptop carries each step out with the desktop\'s own stock and LOT rules.</div>';
+  if ($('new-ord')) $('new-ord').onclick = openNewOrder;
+  boardDrag();
+  clearTimeout(V.poll);
+  if (V.jobsBusy) V.poll = setTimeout(function () { if (V.page === 'orders' && !document.querySelector('.drawer-bg') && document.activeElement !== $('q')) go('orders', V.arg); }, 8000);
   document.querySelectorAll('[data-agent]').forEach(function (el) { el.onclick = function () { V.agent = el.getAttribute('data-agent'); go('orders', V.arg); }; });
   document.querySelector('[data-owed]').onclick = function () { go('orders', onlyOwed ? '' : 'owed'); };
   var qi = $('q'), t = null;
@@ -371,7 +410,9 @@ async function openOrder(id) {
       '<tr><td colspan="3"><b>Total</b></td><td class="n"><b>' + money(o.total) + '</b></td></tr>' +
       '<tr><td colspan="3" class="mut">Paid</td><td class="n mut">' + money(o.paid) + '</td></tr></table>' +
       (lots ? '<div><h2>LOTs sent</h2><div class="chips">' + lots + '</div></div>' : '') +
-      (o.notes ? '<div><h2>Notes</h2><div>' + esc(o.notes) + '</div></div>' : '');
+      (o.notes ? '<div><h2>Notes</h2><div style="white-space:pre-wrap">' + esc(o.notes) + '</div></div>' : '') + '<div id="acts"></div>';
+    $('x').onclick = function () { bg.remove(); };
+    await orderActions($('acts'), o, function () { bg.remove(); });
   } catch (e) {
     if (e.message === 'signin') { bg.remove(); return; }
     dr.innerHTML = '<div class="alert">' + esc(e.message) + '</div><button class="btn" id="x">Close</button>';
@@ -676,6 +717,189 @@ function openSign(action) {
       $('dx').onclick = function () { close(); go('approvals', ''); };
     };
   });
+}
+
+/* ---------------------------------------------------------------- order actions */
+/* New, confirm, dispatch and cancel are QUEUED (goos_m_order) and carried
+   out by an open GOOS laptop with the desktop's own order functions - stock,
+   LOTs (FEFO), toll and dispatch rules stay in one place. */
+async function ordr(action, id, payload) {
+  var r = await rpc('goos_m_order', {p_token: S.token, p_action: action, p_id: String(id || ''),
+                                     p_data: payload ? JSON.stringify(payload) : ''});
+  if (r && r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); throw new Error('signin'); }
+  if (!r || !r.ok) throw new Error((r && r.error) || 'GOOS could not do this.');
+  return r;
+}
+function sentNote(dr, close, what) {
+  dr.innerHTML = '<h1 style="font-size:22px">Sent</h1><div class="ok">' + esc(what) +
+    ' An open GOOS laptop carries it out within a minute; the result shows under "Your order requests" on the Orders page.</div>' +
+    '<div><button class="btn dark" id="dx">OK</button></div>';
+  $('dx').onclick = function () { close(); go('orders', V.arg); };
+}
+function tomorrow() { var d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); }
+
+function openNewOrder() {
+  drawer(async function (dr, close) {
+    var f = await ordr('form');
+    var items = f.items || [], custs = f.customers || [];
+    var byName = {}; items.forEach(function (i) { byName[i.name.toLowerCase()] = i; });
+    var opts = items.map(function (i) { return '<option value="' + esc(i.name) + '">'; }).join('');
+    dr.innerHTML = '<div class="row"><div><div class="crumb">Orders</div><h1 style="font-size:22px">New order</h1></div><button class="btn" id="dx">Close</button></div>' +
+      laptopsNote(f.laptops) + '<div class="form">' +
+      '<label class="fl" style="grid-column:1/-1"><span>Customer</span><select id="n-cust"><option value="">- pick the customer -</option>' +
+      custs.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('') + '</select></label>' +
+      '<div id="n-note" class="mut" style="grid-column:1/-1"></div>' +
+      fld('Delivery date', 'n-date', tomorrow(), 'date') + fld('Preferred time', 'n-time', '') +
+      fld('Dispatch day', 'n-day', '') +
+      '<label class="fl"><span>Required receipts</span><select id="n-docs"><option value="">None</option><option>DR</option><option>SI</option><option>SI &amp; DR</option></select></label>' +
+      '<label class="fl" style="grid-column:1/-1"><span>Notes</span><input id="n-notes"></label></div>' +
+      '<datalist id="n-items">' + opts + '</datalist>' +
+      '<h2 style="margin-top:6px">Items</h2><div class="mut">The price comes from Pricing; type over it if this order\'s price differs.</div>' +
+      '<table id="n-lines"><tr><th>Item</th><th class="n">Qty</th><th class="n">Unit price</th><th class="n">Amount</th><th></th></tr></table>' +
+      '<div class="btns"><button class="btn" id="n-add">+ Add item</button><span style="margin-left:auto;font-weight:700" id="n-total"></span></div>' +
+      '<div class="err" id="n-err"></div><div class="btns"><button class="btn dark" id="n-go">Save order</button></div>' +
+      '<div class="mut">Stock is checked and the LOTs to send are chosen (oldest expiry first) when a GOOS laptop saves it, exactly as on the desktop.</div>';
+    $('dx').onclick = close;
+    var tbl = $('n-lines');
+    function total() {
+      var t = 0;
+      tbl.querySelectorAll('tr.ln').forEach(function (tr) {
+        var a = Number(tr.querySelector('.q').value || 0) * Number(tr.querySelector('.p').value || 0);
+        tr.querySelector('.a').textContent = a ? money(a) : ''; t += a; });
+      $('n-total').textContent = 'Order total ' + money(t);
+    }
+    function addLine() {
+      var tr = document.createElement('tr'); tr.className = 'ln';
+      tr.innerHTML = '<td><input class="i search" list="n-items" style="min-width:260px" placeholder="Type to search"></td>' +
+        '<td class="n"><input class="q search" style="min-width:0;width:80px" inputmode="decimal"></td>' +
+        '<td class="n"><input class="p search" style="min-width:0;width:110px" inputmode="decimal"></td><td class="n a"></td>' +
+        '<td class="n"><button class="btn sm x">\u00d7</button></td>';
+      tbl.appendChild(tr);
+      tr.querySelector('.i').onchange = function () { var it = byName[this.value.trim().toLowerCase()]; if (it) tr.querySelector('.p').value = Number(it.price).toFixed(2); total(); };
+      tr.querySelector('.q').oninput = total; tr.querySelector('.p').oninput = total;
+      tr.querySelector('.x').onclick = function () { tr.remove(); total(); };
+      tr.querySelector('.i').focus();
+    }
+    $('n-add').onclick = addLine; addLine(); total();
+    $('n-cust').onchange = function () {
+      var c = custs.filter(function (x) { return String(x.id) === $('n-cust').value; })[0];
+      $('n-note').innerHTML = c && c.note ? '<span class="pill o" style="white-space:normal;display:inline-block">' + esc(c.note) + '</span>' : '';
+      if (c) { $('n-day').value = c.day || ''; $('n-docs').value = c.docs || '';
+               if (c.note && $('n-notes').value.indexOf(c.note) < 0) $('n-notes').value = c.note; }
+    };
+    $('n-go').onclick = async function () {
+      var err = $('n-err'), lines = [], bad = '';
+      if (!$('n-cust').value) { err.textContent = 'Pick the customer.'; return; }
+      tbl.querySelectorAll('tr.ln').forEach(function (tr) {
+        var nm = tr.querySelector('.i').value.trim(), q = Number(tr.querySelector('.q').value || 0), p = Number(tr.querySelector('.p').value || 0);
+        if (!nm && !q) return;
+        if (!byName[nm.toLowerCase()]) { bad = nm + ' is not an item in Pricing - pick it from the list.'; return; }
+        if (!(q > 0)) { bad = 'Enter the quantity for ' + nm + '.'; return; }
+        if (isNaN(p) || p < 0) { bad = 'Check the price of ' + nm + '.'; return; }
+        lines.push({name: byName[nm.toLowerCase()].name, qty: q, price: p});
+      });
+      if (bad) { err.textContent = bad; return; }
+      if (!lines.length) { err.textContent = 'Add at least one item.'; return; }
+      $('n-go').disabled = true; err.textContent = 'Sending...';
+      try {
+        await ordr('new', '', {customer_id: Number($('n-cust').value), delivery_date: $('n-date').value, time: $('n-time').value,
+                               day: $('n-day').value, docs: $('n-docs').value, notes: $('n-notes').value, lines: lines});
+      } catch (e) { if (e.message === 'signin') { close(); return; } err.textContent = e.message; $('n-go').disabled = false; return; }
+      sentNote(dr, close, 'The new order for ' + $('n-cust').selectedOptions[0].text + ' is sent.');
+    };
+  });
+}
+
+/* the actions an order allows, under its details */
+async function orderActions(box, o, close) {
+  if (!can('orders')) return;
+  var st = o.state;
+  if (st !== 'new' && st !== 'confirmed') return;
+  var info = await ordr('info', o.id), x = info.order, pays = info.payments || [];
+  if (info.busy) { box.innerHTML = '<div class="ok">A request for this order is waiting for a GOOS laptop.</div>'; return; }
+  var h = '<h2>Next step</h2>' + laptopsNote(info.laptops);
+  if (st === 'new') {
+    h += '<div class="form"><label class="fl"><span>Payment received via</span><select id="o-pay"><option value="">- choose -</option>' +
+      pays.map(function (p) { return '<option' + (p === x.method ? ' selected' : '') + '>' + esc(p) + '</option>'; }).join('') + '</select></label></div>' +
+      '<div class="mut">Choose "For Collection" if it will be collected on delivery or billed - nothing is recorded as received until the payment is logged. Any other choice records the money as IN.</div>' +
+      '<div class="err" id="o-err"></div><div class="btns"><button class="btn dark" id="o-conf">Confirm order</button><button class="btn" id="o-can">Cancel order</button></div>';
+  } else {
+    var needSi = /SI/.test(x.docs), needDr = /DR/.test(x.docs);
+    h += '<div class="form">' + fld('SI number' + (needSi ? ' (required)' : ''), 'o-si', x.si) + fld('DR number' + (needDr ? ' (required)' : ''), 'o-dr', x.dr) + '</div>' +
+      '<div class="mut">' + (x.docs ? 'This customer needs: ' + esc(x.docs) + '. ' : '') + 'These are the numbers on the paper receipts.</div>' +
+      (x.auth ? '<div class="ok">CEO authorised: ' + esc(x.auth) + '</div>' : (x.auth_req ? '<div class="alert">Waiting for the CEO to authorise (asked ' + esc(x.auth_req) + ').</div>' : '')) +
+      (info.ceo && !x.auth ? '<label class="mut"><input type="checkbox" id="o-auth"> If the bottles are not available yet, I authorise this dispatch (CEO)</label>' : '') +
+      '<div class="err" id="o-err"></div><div class="btns"><button class="btn dark" id="o-disp">Dispatch</button>' +
+      (!info.ceo && !x.auth && !x.auth_req ? '<button class="btn" id="o-ask">Ask the CEO to authorise</button>' : '') +
+      '<button class="btn" id="o-can">Cancel order</button></div>' +
+      '<div class="mut">If the bottles are not on the shelf (or still on hold for QA), GOOS refuses the dispatch unless the CEO authorises it - the same rule as the desktop.</div>';
+  }
+  box.innerHTML = h;
+  async function send(action, payload, what, btn) {
+    btn.disabled = true; $('o-err').textContent = 'Sending...';
+    try { await ordr(action, o.id, payload); }
+    catch (e) { if (e.message === 'signin') { close(); return; } $('o-err').textContent = e.message; btn.disabled = false; return; }
+    sentNote(box.parentNode, close, what);
+  }
+  if ($('o-conf')) $('o-conf').onclick = function () {
+    if (!$('o-pay').value) { $('o-err').textContent = 'Choose the payment method.'; return; }
+    send('confirm', {method: $('o-pay').value}, (o.reference || 'The order') + ' will be confirmed (' + $('o-pay').value + ').', this);
+  };
+  if ($('o-disp')) $('o-disp').onclick = function () {
+    var si = $('o-si').value.trim(), dr = $('o-dr').value.trim();
+    if (needSi && !si) { $('o-err').textContent = 'This customer needs an SI number.'; return; }
+    if (needDr && !dr) { $('o-err').textContent = 'This customer needs a DR number.'; return; }
+    send('dispatch', {si: si, dr: dr, authorise: !!($('o-auth') && $('o-auth').checked)}, (o.reference || 'The order') + ' will be dispatched.', this);
+  };
+  if ($('o-ask')) $('o-ask').onclick = function () { send('askauth', {}, 'The CEO is asked to authorise ' + (o.reference || 'the order') + ' in For Approval.', this); };
+  $('o-can').onclick = function () {
+    if (!confirm('Cancel ' + (o.reference || 'this order') + ' for ' + o.customer_name + '? Its stock goes back on the shelf.')) return;
+    send('cancel', {}, (o.reference || 'The order') + ' will be cancelled.', this);
+  };
+}
+
+async function orderJobs() {
+  if (!can('orders')) return '';
+  var r;
+  try { r = await ordr('status'); } catch (e) { if (e.message === 'signin') throw e; return ''; }
+  var jobs = r.jobs || [];
+  V.jobsBusy = jobs.some(function (j) { return j.status === 'queued' || j.status === 'working'; });
+  if (!jobs.length) return '';
+  var W = {'new': 'New order', confirm: 'Confirm', dispatch: 'Dispatch', cancel: 'Cancel', askauth: 'Ask CEO'};
+  return '<div class="card"><h2>Your order requests</h2>' + laptopsNote(r.laptops) + '<ul class="list">' + jobs.slice(0, 8).map(function (j) {
+    var cls = j.status === 'done' ? 'g' : (j.status === 'failed' ? 'r' : 'o');
+    return '<li><span>' + esc(j.at) + ' \u00b7 ' + esc(W[j.action] || j.action) + (j.ref_id && j.ref_id !== '0' && j.ref_id !== 0 ? ' #' + esc(j.ref_id) : '') +
+      (j.result ? '<br><span class="mut">' + esc(String(j.result).slice(0, 220)) + '</span>' : '') + '</span><span class="pill ' + cls + '">' +
+      esc(j.status === 'queued' ? 'waiting' : j.status) + '</span></li>'; }).join('') + '</ul></div>';
+}
+function boardDrag() {
+  /* drag a card to the next column: New -> Confirmed opens Confirm,
+     Confirmed -> Delivered opens Dispatch. Other moves are not steps. */
+  var from = null;
+  document.querySelectorAll('.ocard').forEach(function (c) {
+    c.draggable = true;
+    c.ondragstart = function (e) { from = {id: c.getAttribute('data-order'), col: c.closest('.col').getAttribute('data-col')}; e.dataTransfer.setData('text/plain', from.id); };
+  });
+  document.querySelectorAll('.col').forEach(function (col) {
+    col.ondragover = function (e) { if (from) { e.preventDefault(); col.style.outline = '2px dashed #D9A441'; } };
+    col.ondragleave = function () { col.style.outline = ''; };
+    col.ondrop = function (e) {
+      e.preventDefault(); col.style.outline = '';
+      if (!from) return;
+      var to = col.getAttribute('data-col'), fc = from.col, ok = (fc === 'new' && to === 'confirmed') || (fc === 'confirmed' && to === 'unpaid');
+      var id = from.id; from = null;
+      if (ok) openOrder(id); else if (to !== fc) alert('Move orders one step at a time: New \u2192 Confirmed \u2192 Delivered. Payments move them to Paid.');
+    };
+  });
+}
+
+/* ---------------------------------------------------------------- phone screens */
+function pageEmbedded(v) {
+  var name = (NAV.filter(function (n) { return n[0] === v; })[0] || [v, v])[1];
+  $('main').innerHTML = '<div class="top"><div><div class="crumb">From the GOOS phone app</div><h1>' + esc(name) + '</h1></div><div class="btns">' +
+    '<button class="btn" id="reload">\u21bb Refresh</button></div></div>' +
+    '<iframe class="frame" id="frm" title="' + esc(name) + '" src="index.html?embed=1&v=' + encodeURIComponent(v) + '"></iframe>';
+  $('reload').onclick = function () { try { $('frm').contentWindow.location.reload(); } catch (e) { go(v, ''); } };
 }
 
 /* ---------------------------------------------------------------- start */

@@ -31,7 +31,8 @@ GOOS WEB ON A LAPTOP (monday.com-style view)
    https://YOURNAME.github.io/goos-phone/desk.html
  in Chrome or Edge and sign in with the normal GOOS username and password.
  It shows the Dashboard, For approval, the Orders board, Customers and
- Lots & Expiry, and takes payments and approvals (an open GOOS laptop
- posts them, as for the phone). Printing and payroll stay in GOOS.
+ Lots & Expiry. It takes payments and approvals, and creates, confirms,
+ dispatches and cancels orders (an open GOOS laptop carries each out, as
+ for the phone). Printing and payroll stay in GOOS.
 
 The address is public but shows nothing without a GOOS sign-in.

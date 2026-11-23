@@ -13,6 +13,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--cream);color:var(--navy);overflow-x:hidden;
  font:16px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body.embed #menu,body.embed #nav,body.embed #scrim{display:none!important}
 button,input,select{font:inherit}
 header{position:sticky;top:0;z-index:31;background:var(--navy);color:#fff;
  padding:12px 14px calc(10px) 14px;display:flex;align-items:center;gap:10px}
@@ -147,7 +148,11 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.158'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.161'};
+/* 3.99.161 - opened INSIDE GOOS Web (desk.html?embed=1&v=quotes): the web
+   gives the menu and sign-in, so this copy hides its own menu, opens the
+   screen asked for, and leaves the browser's Back button alone. */
+var EMBED = window.top !== window && /[?&]embed=1/.test(location.search);
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -1897,11 +1902,16 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
   navigator.serviceWorker.register('sw.js').catch(function () {});
 }
 load();
+if (EMBED) document.body.className += ' embed';
 /* 3.99.106 - a pull-to-refresh reloads the page: open the screen that was
    showing. A half-typed form is not restored (its typing is gone), so the
    screen it belongs to opens instead. */
 (function () {
   if (!S.token) { drawLogin(''); return; }
+  if (EMBED) {
+    var m = /[?&]v=([a-z]+)/.exec(location.search), ev = m ? m[1] : 'dashboard';
+    go(VIEWS[ev] ? ev : 'dashboard'); return;
+  }
   var h = null;
   try { h = JSON.parse(sessionStorage.getItem('goos_here') || 'null'); } catch (e) {}
   var ok = h && h.v && (h.v === 'dashboard' || (S.views || []).indexOf(h.v) >= 0);
@@ -1914,7 +1924,7 @@ load();
    sheet, leaves a detail for its list, goes from any screen to the
    Dashboard - and on the Dashboard asks before leaving GOOS. */
 var leaving = false;
-try { history.replaceState({goos: 'base'}, ''); history.pushState({goos: 'app'}, ''); } catch (e) {}
+if (!EMBED) { try { history.replaceState({goos: 'base'}, ''); history.pushState({goos: 'app'}, ''); } catch (e) {} }
 function exitAsk() {
   var sh = $('sheet');
   sh.innerHTML = '<div class="box"><h2>Exit GOOS?</h2><p>Are you sure you want to exit?</p>' +
@@ -1929,7 +1939,7 @@ function exitAsk() {
   };
 }
 window.addEventListener('popstate', function () {
-  if (leaving) return;
+  if (leaving || EMBED) return;
   try { history.pushState({goos: 'app'}, ''); } catch (e) {}
   var sh = $('sheet');
   if (sh && sh.className === 'on') { sh.className = ''; sh.innerHTML = ''; return; }
@@ -1948,7 +1958,7 @@ function goUp() {
 var hiddenAt = 0;
 document.addEventListener('visibilitychange', function () {
   if (document.hidden) { hiddenAt = Date.now(); return; }
-  if (S.token && hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.arg && !AI.busy) go('dashboard');
+  if (S.token && !EMBED && hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.arg && !AI.busy) go('dashboard');
 });
 </script>
 </body></html>
