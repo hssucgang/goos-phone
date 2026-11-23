@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GOOS Web</title>
+<link rel="icon" href="icon-192.png">
+<style>
+:root { --navy: #18233F; --gold: #D9A441; --ground: #F4F3EE; --ink: #1B1F2A; --muted: #5B6273;
+  --line: #E6E4DC; --soft: #ECEAE3; --green: #2E7D4F; --blue: #2F5DA8; --orange: #B4501A; --red: #8E2A14; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font-family: "Segoe UI", Inter, system-ui, sans-serif; background: var(--ground); color: var(--ink); font-size: 14px; }
+button, input, select { font: inherit; }
+a { color: inherit; }
+.shell { display: flex; min-height: 100vh; }
+.side { width: 232px; flex: none; background: var(--navy); color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
+.brand { font-weight: 800; font-size: 20px; letter-spacing: .5px; padding: 0 10px; }
+.brand small { display: block; font-weight: 400; font-size: 12px; color: #AEB6C8; letter-spacing: 0; margin-top: 2px; }
+.rule { height: 2px; background: var(--gold); margin: 14px 10px 10px; border-radius: 2px; }
+.nav { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #D6DBE6; text-decoration: none; cursor: pointer; border: 0; background: none; text-align: left; width: 100%; }
+.nav:hover { background: rgba(255,255,255,.07); }
+.nav.on { background: rgba(217,164,65,.18); color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--gold); }
+.nav .n { margin-left: auto; background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+.me { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid rgba(255,255,255,.12); font-size: 13px; }
+.me b { display: block; } .me span { color: #AEB6C8; font-size: 12px; }
+.me button { margin-top: 10px; width: 100%; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: none; color: #fff; cursor: pointer; }
+.main { flex: 1; min-width: 0; padding: 26px 32px 40px; display: flex; flex-direction: column; gap: 18px; }
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.crumb { font-size: 13px; color: var(--muted); }
+.crumb a { cursor: pointer; text-decoration: underline; }
+h1 { margin: 4px 0 0; font-size: 28px; color: var(--navy); }
+h2 { margin: 0 0 10px; font-size: 16px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 9px 14px; border-radius: 10px; border: 1px solid #D5D3CA; background: #fff; cursor: pointer; }
+.btn.dark { background: var(--navy); color: #fff; border-color: var(--navy); font-weight: 600; }
+.btn:disabled { opacity: .5; cursor: default; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+.kpi .l { font-size: 13px; color: var(--muted); }
+.kpi .v { font-size: 26px; font-weight: 700; color: var(--navy); margin-top: 6px; }
+.kpi .s { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.kpi.click { cursor: pointer; } .kpi.click:hover { border-color: var(--gold); }
+.grid2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid #EEECE5; }
+.list li:first-child { border-top: 0; }
+.list li.click { cursor: pointer; } .list li.click:hover { background: #FAF9F5; }
+.mut { color: var(--muted); font-size: 12px; }
+.pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #E5ECF8; color: #1E4380; white-space: nowrap; }
+.pill.g { background: #E3EEE6; color: #1F5A37; } .pill.o { background: #FBEBD8; color: #8A3F10; }
+.pill.r { background: #F8E1DA; color: var(--red); } .pill.y { background: var(--soft); color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 7px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+.chip.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.search { padding: 8px 12px; border: 1px solid #D5D3CA; border-radius: 10px; min-width: 220px; background: #fff; }
+.board { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 14px; overflow-x: auto; }
+.col { background: var(--soft); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 420px; }
+.colh { display: flex; justify-content: space-between; align-items: center; font-weight: 600; padding: 2px 4px 4px; }
+.colh i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.ocard { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+.ocard:hover { border-color: var(--gold); }
+.ocard .c { font-weight: 600; } .ocard .a { font-weight: 700; font-size: 15px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 8px 8px 0; }
+td { padding: 10px 8px 10px 0; border-top: 1px solid #EEECE5; vertical-align: top; }
+td.n, th.n { text-align: right; }
+tr.click { cursor: pointer; } tr.click:hover td { background: #FAF9F5; }
+.lotrow { display: grid; grid-template-columns: 240px 120px 1fr; gap: 16px; align-items: center; padding: 12px 0; border-top: 1px solid #EEECE5; }
+.lot { display: inline-flex; flex-direction: column; padding: 7px 11px; border-radius: 12px; font-size: 12px; min-width: 128px; }
+.lot b { font-size: 13px; }
+.alert { padding: 13px 18px; border-radius: 14px; background: #F8E1DA; color: var(--red); }
+.ok { padding: 13px 18px; border-radius: 14px; background: #E3EEE6; color: #1F5A37; }
+.empty { color: var(--muted); padding: 18px 0; }
+.drawer-bg { position: fixed; inset: 0; background: rgba(24,35,63,.35); display: flex; justify-content: flex-end; z-index: 9; }
+.drawer { width: min(520px, 100%); height: 100%; background: #fff; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--navy); }
+.login { background: #fff; border-radius: 18px; padding: 32px; width: min(380px, 92vw); display: flex; flex-direction: column; gap: 12px; }
+.login h2 { margin: 0; font-size: 24px; color: var(--navy); }
+.login input { padding: 11px 12px; border: 1px solid #D5D3CA; border-radius: 10px; }
+.err { color: var(--red); min-height: 18px; font-size: 13px; }
+.foot { font-size: 12px; color: var(--muted); }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.fl input, .fl select { padding: 9px 11px; border: 1px solid #D5D3CA; border-radius: 10px; color: var(--ink); background: #fff; }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .side { width: 190px; } .lotrow { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* GOOS Web (3.99.158) - the laptop-browser face of GOOS. It reads the
+   SAME server functions as the phone app (goos_m_*), so it shows exactly what
+   GOOS shows and needs nothing new on the server. Changes that move stock or
+   money stay in desktop GOOS for now: those rules live there once, and a
+   second copy here would drift. */
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.158'};
+var PESO = '\u20b1';
+var S = {token: '', name: '', user: '', role: '', views: []};
+var V = {page: 'dashboard', arg: '', agent: '', q: '', cache: {}};
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+  return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+function money(n) { n = Number(n || 0); return PESO + ' ' + n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function money0(n) { n = Number(n || 0); return PESO + ' ' + Math.round(n).toLocaleString('en-PH'); }
+function num(n) { n = Number(n || 0); return (Math.round(n * 100) / 100).toLocaleString('en-PH'); }
+function day(s) { s = String(s || '').slice(0, 10); return s; }
+function daysAgo(s) {
+  var d = new Date(String(s || '').slice(0, 10) + 'T00:00:00');
+  if (isNaN(d)) return null;
+  var t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((t - d) / 86400000);
+}
+function prettyDay(s) {
+  var d = new Date(String(s || '').slice(0, 10) + 'T00:00:00');
+  if (isNaN(d)) return s || '-';
+  var n = daysAgo(s);
+  if (n === 0) return 'Today'; if (n === -1) return 'Tomorrow'; if (n === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'});
+}
+function save() { try { localStorage.setItem('goos_web', JSON.stringify(S)); } catch (e) {} }
+function load() { try { var v = JSON.parse(localStorage.getItem('goos_web') || '{}');
+  S.token = v.token || ''; S.name = v.name || ''; S.user = v.user || ''; S.role = v.role || ''; S.views = v.views || []; } catch (e) {} }
+function can(v) { return S.role === 'CEO' || (S.views || []).indexOf(v) >= 0; }
+
+async function rpc(fn, body) {
+  var h = {'Content-Type': 'application/json', 'apikey': CFG.key};
+  if (/^eyJ/.test(CFG.key)) h['Authorization'] = 'Bearer ' + CFG.key;
+  var r = await fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn,
+                      {method: 'POST', cache: 'no-store', headers: h, body: JSON.stringify(body)});
+  if (!r.ok) throw new Error('The server said ' + r.status + '.');
+  return r.json();
+}
+/* One read. A sign-out from the server (password changed, account switched
+   off) sends the user back to sign in instead of showing an empty page. */
+async function data(view, arg) {
+  var r = await rpc('goos_m_data', {p_token: S.token, p_view: view, p_arg: arg || ''});
+  if (r && r.ok === false) {
+    if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); throw new Error('signin'); }
+    throw new Error(r.error || 'GOOS could not open this.');
+  }
+  return r && r.data !== undefined ? r.data : r;
+}
+async function pbkdf2Hex(password, saltHex) {
+  var enc = new TextEncoder();
+  var salt = new Uint8Array(saltHex.match(/../g).map(function (h) { return parseInt(h, 16); }));
+  var key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits({name: 'PBKDF2', hash: 'SHA-256', salt: salt, iterations: 100000}, key, 256);
+  return Array.prototype.map.call(new Uint8Array(bits), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+
+/* ---------------------------------------------------------------- sign in */
+function drawLogin(msg) {
+  $('app').innerHTML = '<div class="login-wrap"><div class="login"><h2>GOOS Web</h2>' +
+    '<div class="mut">Grain Ola Operating System. Sign in with your GOOS username and password.</div>' +
+    '<input id="u" autocomplete="username" placeholder="Username" autocapitalize="none">' +
+    '<input id="p" type="password" autocomplete="current-password" placeholder="Password">' +
+    '<div class="err" id="err">' + esc(msg || '') + '</div>' +
+    '<button class="btn dark" id="go">Sign in</button>' +
+    '<div class="foot">GOOS Web ' + esc(CFG.version) + '</div></div></div>';
+  $('go').onclick = signIn;
+  $('p').onkeydown = function (e) { if (e.key === 'Enter') signIn(); };
+  $('u').focus();
+}
+async function signIn() {
+  var u = $('u').value.trim(), p = $('p').value;
+  if (!u || !p) { $('err').textContent = 'Enter your username and password.'; return; }
+  $('go').disabled = true; $('err').textContent = 'Signing in...';
+  try {
+    var salt = await rpc('goos_m_salt', {p_user: u});
+    var h = await pbkdf2Hex(p, String(salt));
+    var r = await rpc('goos_m_login', {p_user: u, p_hash: h});
+    if (!r.ok) { $('err').textContent = r.error; $('go').disabled = false; return; }
+    S.token = r.token; S.name = r.name; S.user = u; S.role = r.role || ''; S.views = r.views || []; save();
+    go('dashboard', '');
+  } catch (e) {
+    $('err').textContent = 'Could not reach GOOS. Check the internet and try again.';
+    $('go').disabled = false;
+  }
+}
+async function signOut() {
+  try { await rpc('goos_m_logout', {p_token: S.token}); } catch (e) {}
+  S.token = ''; save(); drawLogin('');
+}
+
+/* ---------------------------------------------------------------- frame */
+var NAV = [['dashboard', 'Dashboard', '\u25a3'], ['approvals', 'For approval', '\u2713'], ['orders', 'Orders', '\u25a4'],
+           ['customers', 'Customers', '\u263a'], ['lots', 'Lots & Expiry', '\u25d4']];
+function frame(inner) {
+  var nav = NAV.filter(function (n) { return n[0] === 'dashboard' || can(n[0]); }).map(function (n) {
+    return '<button class="nav' + (V.page === n[0] ? ' on' : '') + '" data-go="' + n[0] + '"><span>' + n[2] + '</span>' + esc(n[1]) + '</button>';
+  }).join('');
+  $('app').innerHTML = '<div class="shell"><aside class="side"><div class="brand">GRAIN OLA<small>GOOS Web</small></div><div class="rule"></div>' +
+    nav + '<div class="me"><b>' + esc(S.name) + '</b><span>' + esc(S.role) + '</span>' +
+    '<button id="out">Sign out</button><div class="foot" style="color:#AEB6C8;margin-top:8px">GOOS Web ' + esc(CFG.version) + '</div></div></aside>' +
+    '<main class="main" id="main">' + inner + '</main></div>';
+  $('out').onclick = signOut;
+  wire(document);
+}
+function wire(root) {
+  root.querySelectorAll('[data-go]').forEach(function (el) {
+    el.onclick = function (e) { e.stopPropagation(); V.q = ''; go(el.getAttribute('data-go'), el.getAttribute('data-arg') || ''); };
+  });
+  root.querySelectorAll('[data-pay]').forEach(function (el) {
+    el.onclick = function (e) { e.stopPropagation(); var p = el.getAttribute('data-pay').split(':'); openPay(p[0], p[1] || ''); };
+  });
+  root.querySelectorAll('[data-order]').forEach(function (el) {
+    el.onclick = function (e) { e.stopPropagation(); openOrder(el.getAttribute('data-order')); };
+  });
+}
+function head(crumb, title, btns) {
+  return '<div class="top"><div><div class="crumb">' + crumb + '</div><h1>' + esc(title) + '</h1></div><div class="btns">' + (btns || '') +
+    '<button class="btn" id="reload">\u21bb Refresh</button></div></div>';
+}
+function kpi(l, v, s, go, arg) {
+  return '<div class="card kpi' + (go ? ' click" data-go="' + go + '" data-arg="' + esc(arg || '') : '') + '"><div class="l">' + esc(l) +
+    '</div><div class="v">' + esc(v) + '</div><div class="s">' + (s || '') + '</div></div>';
+}
+async function go(page, arg) {
+  V.page = page; V.arg = arg || '';
+  try { location.hash = page + (arg ? ':' + arg : ''); } catch (e) {}
+  frame('<div class="empty">Loading...</div>');
+  try {
+    if (page === 'orders') await pageOrders();
+    else if (page === 'approvals') await pageApprovals();
+    else if (page === 'customers' && V.arg) await pageCustomer(V.arg);
+    else if (page === 'customers') await pageCustomers();
+    else if (page === 'lots') await pageLots();
+    else await pageDashboard();
+  } catch (e) {
+    if (e.message === 'signin') return;
+    $('main').innerHTML = '<div class="alert">' + esc(e.message || 'Could not reach GOOS.') + '</div>' +
+      '<div><button class="btn" id="again">Try again</button></div>';
+    $('again').onclick = function () { go(V.page, V.arg); };
+    return;
+  }
+  var r = $('reload'); if (r) r.onclick = function () { go(V.page, V.arg); };
+  wire($('main'));
+}
+
+/* ---------------------------------------------------------------- order buckets */
+/* The board columns, from what GOOS records: new and confirmed orders, then
+   delivered orders split by whether money is still owed and how long. */
+var COLS = [['new', 'New', '#5B6273'], ['confirmed', 'Confirmed', '#2F5DA8'], ['unpaid', 'Delivered \u00b7 unpaid', '#B4501A'],
+            ['overdue', 'Overdue (30+ days)', '#8E2A14'], ['paid', 'Paid', '#2E7D4F']];
+function bucket(o) {
+  var bal = Number(o.total || 0) - Number(o.paid || 0);
+  if (o.state === 'new') return 'new';
+  if (o.state === 'confirmed') return 'confirmed';
+  if (o.state === 'dispatched' || o.state === 'recorded') {
+    if (bal <= 0.009) return 'paid';
+    var a = daysAgo(o.day);
+    return a !== null && a > 30 ? 'overdue' : 'unpaid';
+  }
+  return '';
+}
+function ocard(o, b) {
+  var bal = Number(o.total || 0) - Number(o.paid || 0), a = daysAgo(o.day), pill = '';
+  if (b === 'overdue') pill = '<span class="pill r">' + a + ' days</span>';
+  else if (b === 'unpaid') pill = '<span class="pill o">' + money0(bal) + ' owed</span>';
+  else if (b === 'paid') pill = '<span class="pill g">Paid</span>';
+  else if (a !== null && a < 0) pill = '<span class="pill">' + esc(prettyDay(o.day)) + '</span>';
+  else if (a === 0) pill = '<span class="pill">Today</span>';
+  return '<div class="ocard" data-order="' + o.id + '"><div class="row"><span class="c">' + esc(o.customer_name || '-') + '</span>' + pill + '</div>' +
+    '<div class="mut">' + esc(o.reference || ('#' + o.id)) + ' \u00b7 ' + esc(prettyDay(o.day)) + '</div>' +
+    '<div class="a">' + money(o.total) + '</div></div>';
+}
+
+/* ---------------------------------------------------------------- dashboard */
+async function pageDashboard() {
+  var reads = [data('dashboard')];
+  reads.push(can('orders') ? data('orders') : Promise.resolve([]));
+  reads.push(can('lots') ? data('lots') : Promise.resolve([]));
+  var got = await Promise.all(reads), d = got[0] || {}, orders = got[1] || [], lots = got[2] || [];
+  var hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : (hr < 18 ? 'Good afternoon' : 'Good evening');
+  var first = String(S.name || '').split(' ')[0];
+  var today = orders.filter(function (o) { return (o.state === 'confirmed' || o.state === 'new') && daysAgo(o.day) === 0; });
+  var soon = lots.filter(function (l) { var a = daysAgo(l.expires); return a !== null && a >= -30; })
+                 .sort(function (x, y) { return String(x.expires).localeCompare(String(y.expires)); }).slice(0, 8);
+  var need = [];
+  if (d.approvals) need.push(['For approval', d.approvals + ' waiting for a signature', 'r', can('approvals') ? 'approvals' : '']);
+  if (d.orders_new) need.push(['New orders', d.orders_new + ' not yet confirmed', 'o', 'orders']);
+  if (d.qa_open) need.push(['QA', d.qa_open + ' test(s) not finished', 'o']);
+  if (d.fg_out) need.push(['Finished goods', d.fg_out + ' product(s) out of stock', 'o', 'lots']);
+  if (d.raw_low) need.push(['Raw materials', d.raw_low + ' running low', 'o']);
+  var needH = need.length ? need.map(function (n) {
+    return '<li' + (n[3] ? ' class="click" data-go="' + n[3] + '"' : '') + '><span><b>' + esc(n[0]) + '</b><br><span class="mut">' + esc(n[1]) + '</span></span><span class="pill ' + n[2] + '">Open</span></li>';
+  }).join('') : '<li class="empty">Nothing is waiting for you.</li>';
+  var todayH = today.length ? today.map(function (o) {
+    return '<li class="click" data-order="' + o.id + '"><span>' + esc(o.customer_name) + '<br><span class="mut">' + esc(o.reference || '') + '</span></span><b>' + money(o.total) + '</b></li>';
+  }).join('') : '<li class="empty">No deliveries planned today.</li>';
+  var lotH = soon.length ? soon.map(function (l) {
+    var a = -daysAgo(l.expires), cls = a <= 7 ? 'r' : (a <= 14 ? 'o' : 'y');
+    return '<li><span>' + esc(l.product) + '<br><span class="mut">LOT ' + esc(l.lot) + ' \u00b7 ' + num(l.left_qty) + ' left</span></span><span class="pill ' + cls + '">' +
+      (a < 0 ? 'expired' : (a === 0 ? 'today' : a + ' days')) + '</span></li>';
+  }).join('') : '<li class="empty">No lot expires in the next 30 days.</li>';
+  var online = (d.online || []).map(function (p) { return esc(p.name) + (p.page ? ' <span class="mut">(' + esc(p.page) + ')</span>' : ''); }).join(', ');
+  $('main').innerHTML = head(esc(new Date().toLocaleDateString('en-PH', {weekday: 'long', month: 'long', day: 'numeric'})), hi + ', ' + first) +
+    '<div class="kpis">' + kpi('Sales this month', money0(d.sales_month), 'Delivered orders', 'orders') +
+    kpi('Customers owe', money0(d.owed), (d.owed_count || 0) + ' unpaid invoice(s)', 'orders', 'owed') +
+    kpi('Deliveries today', String(d.deliveries_today || 0), 'Confirmed or out', 'orders') +
+    kpi('Lots expiring', String(d.lots_expiring || 0), 'In the next 30 days', 'lots') + '</div>' +
+    '<div class="grid2"><div class="card"><h2>Needs you</h2><ul class="list">' + needH + '</ul></div>' +
+    '<div class="card"><h2>Today\'s deliveries</h2><ul class="list">' + todayH + '</ul></div></div>' +
+    '<div class="grid2"><div class="card"><h2>Lots expiring soon</h2><ul class="list">' + lotH + '</ul></div>' +
+    '<div class="card"><h2>In GOOS right now</h2><div>' + (online || '<span class="mut">Nobody else.</span>') + '</div>' +
+    '<p class="mut" style="margin-top:16px">Payments and approvals can be done here. Printing, payroll and stock changes stay in desktop GOOS for now.</p></div></div>';
+}
+
+/* ---------------------------------------------------------------- orders board */
+async function pageOrders() {
+  var orders = await data('orders');
+  V.cache.orders = orders;
+  var custs = can('customers') ? await data('customers') : [];
+  var agentOf = {};
+  custs.forEach(function (c) { agentOf[String(c.name || '').toLowerCase()] = c.agent || ''; });
+  var agents = []; custs.forEach(function (c) { if (c.agent && agents.indexOf(c.agent) < 0) agents.push(c.agent); });
+  agents.sort();
+  var q = V.q.toLowerCase(), onlyOwed = V.arg === 'owed';
+  var paidCut = 30;
+  var groups = {}; COLS.forEach(function (c) { groups[c[0]] = []; });
+  orders.forEach(function (o) {
+    var b = bucket(o); if (!b) return;
+    if (b === 'paid' && (daysAgo(o.day) || 0) > paidCut) return;
+    if (onlyOwed && b !== 'unpaid' && b !== 'overdue') return;
+    if (V.agent && (agentOf[String(o.customer_name || '').toLowerCase()] || '') !== V.agent) return;
+    if (q && (String(o.customer_name) + ' ' + String(o.reference)).toLowerCase().indexOf(q) < 0) return;
+    groups[b].push(o);
+  });
+  var cols = COLS.map(function (c) {
+    var list = groups[c[0]], sum = list.reduce(function (s, o) {
+      return s + (c[0] === 'unpaid' || c[0] === 'overdue' ? Number(o.total || 0) - Number(o.paid || 0) : Number(o.total || 0)); }, 0);
+    return '<section class="col"><div class="colh"><span><i style="background:' + c[2] + '"></i>' + esc(c[1]) + '</span><span class="mut">' + list.length + '</span></div>' +
+      '<div class="mut" style="padding:0 4px">' + money0(sum) + '</div>' +
+      (list.map(function (o) { return ocard(o, c[0]); }).join('') || '<div class="empty" style="padding:8px 4px">None</div>') + '</section>';
+  }).join('');
+  var chips = '<span class="chip' + (!V.agent ? ' on' : '') + '" data-agent="">All agents</span>' + agents.map(function (a) {
+    return '<span class="chip' + (V.agent === a ? ' on' : '') + '" data-agent="' + esc(a) + '">' + esc(a) + '</span>'; }).join('') +
+    '<span class="chip' + (onlyOwed ? ' on' : '') + '" data-owed="1">Only unpaid</span>';
+  $('main').innerHTML = head('Sales', 'Orders') +
+    '<div class="row" style="flex-wrap:wrap"><div class="chips">' + chips + '</div><input class="search" id="q" placeholder="Search customer or reference" value="' + esc(V.q) + '"></div>' +
+    '<div class="board">' + cols + '</div>' +
+    '<div class="foot">The newest 200 orders. Paid shows the last ' + paidCut + ' days. Orders are created, confirmed and dispatched in desktop GOOS or on the phone, so the stock and lot rules run in one place.</div>';
+  document.querySelectorAll('[data-agent]').forEach(function (el) { el.onclick = function () { V.agent = el.getAttribute('data-agent'); go('orders', V.arg); }; });
+  document.querySelector('[data-owed]').onclick = function () { go('orders', onlyOwed ? '' : 'owed'); };
+  var qi = $('q'), t = null;
+  qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { V.q = qi.value; var pos = qi.value.length; go('orders', V.arg).then(function () { var n = $('q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); }, 300); };
+}
+
+async function openOrder(id) {
+  var bg = document.createElement('div'); bg.className = 'drawer-bg';
+  bg.innerHTML = '<div class="drawer"><div class="empty">Loading...</div></div>';
+  bg.onclick = function (e) { if (e.target === bg) bg.remove(); };
+  document.body.appendChild(bg);
+  var dr = bg.firstChild;
+  try {
+    var r = await data('orders', String(id)), o = r.order || {};
+    var bal = Number(o.total || 0) - Number(o.paid || 0);
+    var lines = (r.lines || []).map(function (l) {
+      return '<tr><td>' + esc(l.item_name) + '</td><td class="n">' + num(l.qty) + '</td><td class="n">' + money(l.price) + '</td><td class="n">' + money(l.amount) + '</td></tr>'; }).join('');
+    var lots = (r.lots || []).map(function (l) { return '<span class="pill y">LOT ' + esc(l.lot || '-') + ' \u00d7 ' + num(l.qty) + '</span>'; }).join(' ');
+    dr.innerHTML = '<div class="row"><div><div class="crumb">Order ' + esc(o.reference || ('#' + o.id)) + '</div><h1 style="font-size:22px">' + esc(o.customer_name) + '</h1></div>' +
+      '<button class="btn" id="x">Close</button></div>' +
+      '<div class="chips"><span class="pill">' + esc(o.state) + '</span>' + (o.si_no ? '<span class="pill y">SI ' + esc(o.si_no) + '</span>' : '') +
+      (o.dr_no ? '<span class="pill y">DR ' + esc(o.dr_no) + '</span>' : '') + (bal > 0.009 && (o.state === 'dispatched' || o.state === 'recorded') ? '<span class="pill o">' + money(bal) + ' owed</span>' : '') + '</div>' +
+      '<div class="mut">Ordered ' + esc(day(o.order_date) || '-') + ' \u00b7 Delivery ' + esc(day(o.delivery_date) || '-') + (o.taken_by ? ' \u00b7 by ' + esc(o.taken_by) : '') + (o.payment_method ? ' \u00b7 ' + esc(o.payment_method) : '') + '</div>' +
+      '<table><tr><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr>' + lines +
+      '<tr><td colspan="3"><b>Total</b></td><td class="n"><b>' + money(o.total) + '</b></td></tr>' +
+      '<tr><td colspan="3" class="mut">Paid</td><td class="n mut">' + money(o.paid) + '</td></tr></table>' +
+      (lots ? '<div><h2>LOTs sent</h2><div class="chips">' + lots + '</div></div>' : '') +
+      (o.notes ? '<div><h2>Notes</h2><div>' + esc(o.notes) + '</div></div>' : '');
+  } catch (e) {
+    if (e.message === 'signin') { bg.remove(); return; }
+    dr.innerHTML = '<div class="alert">' + esc(e.message) + '</div><button class="btn" id="x">Close</button>';
+  }
+  $('x').onclick = function () { bg.remove(); };
+}
+
+/* ---------------------------------------------------------------- customers */
+async function pageCustomers() {
+  var got = await Promise.all([data('customers'), can('collections') ? data('collections', 'soa') : Promise.resolve([])]);
+  var custs = got[0] || [], owe = {};
+  (got[1] || []).forEach(function (s) { owe[s.id] = s; });
+  var q = V.q.toLowerCase();
+  var list = custs.filter(function (c) { return !q || (c.name + ' ' + c.city + ' ' + c.agent + ' ' + c.contact).toLowerCase().indexOf(q) >= 0; });
+  list.sort(function (a, b) { return ((owe[b.id] || {}).owed || 0) - ((owe[a.id] || {}).owed || 0) || String(a.name).localeCompare(String(b.name)); });
+  var total = 0, late = 0; (got[1] || []).forEach(function (s) { total += Number(s.owed || 0); if (s.age > 30) late++; });
+  var rows = list.map(function (c) {
+    var o = owe[c.id];
+    return '<tr class="click" data-go="customers" data-arg="' + c.id + '"><td><b>' + esc(c.name) + '</b><br><span class="mut">' + esc(c.contact || '') + (c.mobile ? ' \u00b7 ' + esc(c.mobile) : '') + '</span></td>' +
+      '<td>' + esc(c.city || '-') + '</td><td>' + esc(c.agent || '-') + '</td><td>' + esc(c.payment || '-') + '</td>' +
+      '<td class="n">' + (o ? '<b>' + money(o.owed) + '</b>' : '<span class="mut">-</span>') + '</td>' +
+      '<td class="n">' + (o ? '<span class="pill ' + (o.age > 30 ? 'r' : 'o') + '">' + o.age + ' days</span>' : '') + '</td></tr>';
+  }).join('');
+  $('main').innerHTML = head('Sales', 'Customers') +
+    '<div class="kpis">' + kpi('Active customers', String(custs.length), '') + kpi('Owe us', money0(total), (got[1] || []).length + ' customer(s)') +
+    kpi('Over 30 days', String(late), 'customer(s) with an old invoice') + kpi('Agents', String(new Set(custs.map(function (c) { return c.agent; }).filter(Boolean)).size), '') + '</div>' +
+    '<div class="card"><div class="row" style="margin-bottom:10px"><h2 style="margin:0">All customers</h2><input class="search" id="q" placeholder="Search name, city, agent" value="' + esc(V.q) + '"></div>' +
+    '<table><tr><th>Customer</th><th>City</th><th>Agent</th><th>Terms</th><th class="n">Owes</th><th class="n">Oldest</th></tr>' + (rows || '<tr><td colspan="6" class="empty">No customer matches.</td></tr>') + '</table></div>';
+  var qi = $('q'), t = null;
+  qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { V.q = qi.value; var pos = qi.value.length; go('customers', '').then(function () { var n = $('q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); }, 300); };
+}
+
+async function pageCustomer(id) {
+  var got = await Promise.all([data('customers'), can('collections') ? data('collections', 'soa:' + id) : Promise.resolve({}),
+                               can('orders') ? data('orders') : Promise.resolve([])]);
+  var c = (got[0] || []).filter(function (x) { return String(x.id) === String(id); })[0] || {};
+  var soa = got[1] || {}, info = soa.customer || {}, open = soa.rows || [];
+  var name = c.name || info.trade_name || 'Customer';
+  var mine = (got[2] || []).filter(function (o) { return String(o.customer_name || '').toLowerCase() === String(name).toLowerCase(); });
+  var owed = open.reduce(function (s, r) { return s + Number(r.bal || 0); }, 0);
+  var oldest = open.reduce(function (m, r) { return Math.max(m, Number(r.age || 0)); }, 0);
+  var yr = String(new Date().getFullYear());
+  var bought = mine.filter(function (o) { return (o.state === 'dispatched' || o.state === 'recorded') && String(o.day).slice(0, 4) === yr; })
+                   .reduce(function (s, o) { return s + Number(o.total || 0); }, 0);
+  var inv = open.map(function (r) {
+    return '<tr class="click" data-order="' + r.id + '"><td>' + esc(r.si_no ? 'SI ' + r.si_no : (r.reference || '#' + r.id)) + (r.dr_no ? '<br><span class="mut">DR ' + esc(r.dr_no) + '</span>' : '') + '</td><td>' + esc(day(r.day)) + '</td>' +
+      '<td class="n">' + money(r.total) + '</td><td class="n"><b>' + money(r.bal) + '</b></td><td class="n"><span class="pill ' + (r.age > 30 ? 'r' : (r.age > 15 ? 'o' : 'y')) + '">' + r.age + ' days</span></td>' +
+      (can('collections') ? '<td class="n"><button class="btn sm" data-pay="' + id + ':' + r.id + '">Pay</button></td>' : '') + '</tr>'; }).join('');
+  var hist = mine.slice(0, 12).map(function (o) {
+    var b = bucket(o), lab = {'new': 'New', confirmed: 'Confirmed', unpaid: 'Unpaid', overdue: 'Overdue', paid: 'Paid'}[b] || o.state;
+    return '<li class="click" data-order="' + o.id + '"><span>' + esc(o.reference || '#' + o.id) + '<br><span class="mut">' + esc(prettyDay(o.day)) + '</span></span><span>' + money(o.total) +
+      ' <span class="pill ' + ({paid: 'g', overdue: 'r', unpaid: 'o'}[b] || 'y') + '">' + esc(lab) + '</span></span></li>'; }).join('');
+  $('main').innerHTML = head('<a data-go="customers">Customers</a>', name, can('collections') && open.length ? '<button class="btn dark" data-pay="' + id + '">Record payment</button>' : '') +
+    '<div class="kpis">' + kpi('Bought this year', money0(bought), 'From the newest 200 orders') + kpi('Open balance', money0(owed), open.length + ' invoice(s)') +
+    kpi('Oldest unpaid', open.length ? oldest + ' days' : '-', info.terms ? 'Terms: ' + esc(info.terms) : '') + kpi('Orders shown', String(mine.length), 'Recent') + '</div>' +
+    '<div class="grid2"><div class="card"><h2>Open invoices</h2>' +
+    (open.length ? '<table><tr><th>Invoice</th><th>Date</th><th class="n">Amount</th><th class="n">Balance</th><th class="n">Age</th>' + (can('collections') ? '<th></th>' : '') + '</tr>' + inv + '</table>' : '<div class="empty">Nothing owed. ' + (can('collections') ? '' : '(Collections is not on your account.)') + '</div>') +
+    '</div><div class="card"><h2>Recent orders</h2><ul class="list">' + (hist || '<li class="empty">No recent orders.</li>') + '</ul>' +
+    '<div class="mut" style="margin-top:14px">' + esc([info.company_name, info.address, info.tin ? 'TIN ' + info.tin : '', c.agent ? 'Agent: ' + c.agent : '', info.contact || c.contact, info.mobile || c.mobile].filter(Boolean).join(' \u00b7 ')) + '</div></div></div>';
+}
+
+/* ---------------------------------------------------------------- lots */
+async function pageLots() {
+  var got = await Promise.all([data('lots'), can('finished') ? data('finished') : Promise.resolve([])]);
+  var lots = got[0] || [], fg = got[1] || [];
+  var by = {};
+  lots.forEach(function (l) { (by[l.product] = by[l.product] || []).push(l); });
+  var names = Object.keys(by);
+  fg.forEach(function (f) { if (Number(f.stock || 0) !== 0 && !by[f.name]) { by[f.name] = []; names.push(f.name); } });
+  names.sort(function (a, b) { return a.localeCompare(b); });
+  var stockOf = {}; fg.forEach(function (f) { stockOf[f.name] = Number(f.stock || 0); });
+  var q = V.q.toLowerCase(), off = [], exp7 = 0, held = 0, total = 0;
+  var rows = names.filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; }).map(function (n) {
+    var ls = (by[n] || []).slice().sort(function (a, b) { return String(a.expires || '9999').localeCompare(String(b.expires || '9999')); });
+    var inLots = ls.reduce(function (s, l) { return s + Number(l.left_qty || 0); }, 0);
+    total += inLots;
+    if (n in stockOf && Math.abs(stockOf[n] - inLots) > 0.009) off.push([n, stockOf[n], inLots]);
+    var firstOk = true;
+    var chips = ls.map(function (l) {
+      var a = l.expires ? -daysAgo(l.expires) : null, hold = /hold|fail|pending/i.test(l.qa || ''), bg = '#E3EEE6', fgc = '#1F5A37', note = '';
+      if (hold) { bg = '#ECEAE3'; fgc = '#5B6273'; note = ' \u00b7 ' + (l.qa || 'on hold'); held++; }
+      else if (a !== null && a <= 7) { bg = '#F8E1DA'; fgc = '#8E2A14'; note = a < 0 ? ' \u00b7 expired' : ' \u00b7 ' + a + ' days'; exp7 += Number(l.left_qty || 0); }
+      else if (firstOk) { bg = '#FBEBD8'; fgc = '#8A3F10'; note = ' \u00b7 next out'; }
+      if (!hold) firstOk = false;
+      return '<span class="lot" style="background:' + bg + ';color:' + fgc + '"><b>' + esc(l.lot || 'NO-LOT') + ' \u00b7 ' + num(l.left_qty) + '</b><span>' + (l.expires ? 'exp ' + esc(day(l.expires)) : 'no expiry') + note + '</span></span>';
+    }).join('');
+    var mis = n in stockOf && Math.abs(stockOf[n] - inLots) > 0.009;
+    return '<div class="lotrow"><div><b>' + esc(n) + '</b>' + (mis ? '<br><span class="pill r">total says ' + num(stockOf[n]) + '</span>' : '') + '</div>' +
+      '<div style="font-size:18px;font-weight:700">' + num(inLots) + ' <span class="mut" style="font-weight:400">in lots</span></div><div class="chips">' + (chips || '<span class="mut">No lot holds bottles</span>') + '</div></div>';
+  }).join('');
+  var banner = off.length ? '<div class="alert"><b>' + off.length + ' product(s): the total and the lots do not agree</b> - ' +
+    off.slice(0, 4).map(function (x) { return esc(x[0]) + ' (total ' + num(x[1]) + ', lots ' + num(x[2]) + ')'; }).join(', ') + (off.length > 4 ? ' ...' : '') +
+    '. Fix it in desktop GOOS: GOOS clean-up \u203a Make totals match the lots.</div>' : (fg.length ? '<div class="ok">Every product total matches its lots.</div>' : '');
+  $('main').innerHTML = head('Inventory', 'Lots & Expiry') + banner +
+    '<div class="kpis">' + kpi('Bottles in lots', num(total), names.length + ' product(s)') + kpi('Expiring in 7 days', num(exp7), 'or already expired') +
+    kpi('On hold', String(held), 'lot(s) waiting for QA') + kpi('Stock = lots', fg.length ? (names.length - off.length) + ' of ' + names.length : '-', off.length ? off.length + ' need fixing' : 'All good') + '</div>' +
+    '<div class="card"><div class="row" style="margin-bottom:6px"><h2 style="margin:0">By product \u00b7 oldest expiry first (FEFO)</h2><input class="search" id="q" placeholder="Search product" value="' + esc(V.q) + '"></div>' +
+    (rows || '<div class="empty">No lot holds bottles.</div>') + '</div>';
+  var qi = $('q'), t = null;
+  qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { V.q = qi.value; var pos = qi.value.length; go('lots', '').then(function () { var n = $('q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); }, 300); };
+}
+
+/* ---------------------------------------------------------------- drawer */
+function drawer(loader) {
+  var bg = document.createElement('div'); bg.className = 'drawer-bg';
+  bg.innerHTML = '<div class="drawer"><div class="empty">Loading...</div></div>';
+  bg.onclick = function (e) { if (e.target === bg) bg.remove(); };
+  document.body.appendChild(bg);
+  var dr = bg.firstChild, close = function () { bg.remove(); };
+  Promise.resolve().then(function () { return loader(dr, close); }).catch(function (e) {
+    if (e.message === 'signin') { close(); return; }
+    dr.innerHTML = '<div class="alert">' + esc(e.message || 'Could not reach GOOS.') + '</div><div><button class="btn" id="dx">Close</button></div>';
+    $('dx').onclick = close;
+  });
+}
+function fld(label, id, val, type, extra) {
+  return '<label class="fl"><span>' + esc(label) + '</span><input id="' + id + '" type="' + (type || 'text') + '" value="' + esc(val == null ? '' : val) + '"' + (extra || '') + '></label>';
+}
+function laptopsNote(n) {
+  return n ? '' : '<div class="alert">No GOOS laptop is open right now. What you send is kept safely and carried out as soon as one opens.</div>';
+}
+
+/* ---------------------------------------------------------------- payments */
+/* Payments go through the SAME server functions as the phone (goos_m_pay,
+   goos_m_paybatch): they are queued, and an open GOOS laptop posts them with
+   the desktop's own collection rules, journal included. Nothing is posted by
+   this page itself. */
+function defaultAccount(accts, method) {
+  var m = String(method || '').toLowerCase();
+  if (/cash|cod/.test(m)) { var c = accts.find(function (a) { return /cash on hand|petty/i.test(a[1]); }); if (c) return c[0]; }
+  if (/gcash|maya/.test(m)) { var g = accts.find(function (a) { return /gcash|maya|e-?wallet/i.test(a[1]); }); if (g) return g[0]; }
+  var b = accts.find(function (a) { return /bank/i.test(a[1]) && !/equivalent/i.test(a[1]); });
+  return (b || accts[0] || [''])[0];
+}
+function payTax(owed, rate, vr) {
+  if (!rate) return 0;
+  var base = vr ? Math.round(owed / (1 + vr) * 100) / 100 : owed;
+  return Math.round(base * rate * 100) / 100;
+}
+/* oldest first, the last one part-paid if the money runs out - the same rule
+   as GOOS on the laptop and the phone */
+function batchAlloc(list, cash, rate, vr) {
+  var left = Math.round(cash * 100) / 100, out = [];
+  var k = 1 - (vr ? rate / (1 + vr) : rate);
+  list.forEach(function (x) {
+    var owed = Number(x.bal);
+    if (left <= 0.004 || owed <= 0) return;
+    var tax = payTax(owed, rate, vr), need = Math.round((owed - tax) * 100) / 100;
+    if (left + 0.004 >= need) { out.push({id: x.id, cash: need, cwt: tax, full: true}); left = Math.round((left - need) * 100) / 100; }
+    else { var settle = k > 0 ? Math.round(left / k * 100) / 100 : left;
+           out.push({id: x.id, cash: left, cwt: rate ? Math.round((settle - left) * 100) / 100 : 0, full: false}); left = 0; }
+  });
+  return {parts: out, left: Math.round(left * 100) / 100};
+}
+function openPay(custId, onlyOrder) {
+  drawer(async function (dr, close) {
+    var d = await data('collections', 'batch:' + custId);
+    var rs = d.rows || [], accts = d.accounts || [], vr = Number(d.vat_rate == null ? 0.12 : d.vat_rate);
+    var name = (d.customer || {}).trade_name || 'Customer';
+    var top = '<div class="row"><div><div class="crumb">Record payment</div><h1 style="font-size:22px">' + esc(name) + '</h1></div><button class="btn" id="dx">Close</button></div>' + laptopsNote(d.laptops);
+    if (!rs.length) { dr.innerHTML = top + '<div class="empty">Nothing left to collect from this customer (payments already waiting to post are counted).</div>'; $('dx').onclick = close; return; }
+    if (!accts.length) { dr.innerHTML = top + '<div class="empty">Open GOOS on a laptop once so the web learns where payments can go, then try again.</div>'; $('dx').onclick = close; return; }
+    var def = (rs[0] && rs[0].paid_to) || defaultAccount(accts, rs[0] && rs[0].payment_method);
+    dr.innerHTML = top + '<div class="mut">Tick the invoices this payment is for. It settles them oldest first.</div>' +
+      '<table><tr><th></th><th>Invoice</th><th>Date</th><th class="n">Balance</th><th class="n"></th></tr>' + rs.map(function (x) {
+        var on = !onlyOrder || String(x.id) === String(onlyOrder);
+        return '<tr><td><input type="checkbox" class="b-ck" value="' + x.id + '"' + (on ? ' checked' : '') + '></td><td>' + esc(x.si_no ? 'SI ' + x.si_no : x.reference) +
+          (x.dr_no ? '<br><span class="mut">DR ' + esc(x.dr_no) + '</span>' : '') + '</td><td>' + esc(day(x.day)) + '<br><span class="mut">' + x.age + ' days</span></td>' +
+          '<td class="n"><b>' + money(x.bal) + '</b></td><td class="n"><span id="b-a' + x.id + '"></span></td></tr>'; }).join('') + '</table>' +
+      '<div class="form">' + fld('Amount received', 'b-amt', '', 'text', ' inputmode="decimal"') +
+      fld('Date received', 'b-date', d.today, 'date', ' max="' + esc(d.today) + '"') +
+      '<label class="fl"><span>Received into</span><select id="b-acct">' + accts.map(function (a) {
+        return '<option value="' + esc(a[0]) + '"' + (a[0] === def ? ' selected' : '') + '>' + esc(a[0] + ' - ' + a[1]) + '</option>'; }).join('') + '</select></label>' +
+      fld('Reference (OR, deposit, check, GCash or bank ref) - optional', 'b-ref', '') +
+      '<label class="fl"><span>Tax withheld by the customer (BIR 2307)</span><select id="b-rate"><option value="0">None</option>' +
+      '<option value="0.01">1% - goods (WC158)</option><option value="0.02">2% - services (WC160)</option></select></label>' +
+      fld('2307 no. (optional, one invoice only)', 'b-cert', '') + '</div>' +
+      '<div class="mut" id="b-sum"></div><div class="err" id="b-err"></div>' +
+      '<div class="btns"><button class="btn dark" id="b-go">Record payment</button></div>' +
+      '<div class="mut">A part payment is fine - the balance stays open until it is settled. An open GOOS laptop posts it within a minute.</div>';
+    $('dx').onclick = close;
+    var typed = false, cur = null;
+    function ticked() {
+      var on = {}; dr.querySelectorAll('.b-ck').forEach(function (c) { if (c.checked) on[c.value] = 1; });
+      return rs.filter(function (x) { return on[String(x.id)]; });
+    }
+    function upd() {
+      var list = ticked(), rate = Number($('b-rate').value);
+      if (!typed) $('b-amt').value = list.length ? list.reduce(function (a, x) { return a + Number(x.bal) - payTax(Number(x.bal), rate, vr); }, 0).toFixed(2) : '';
+      cur = batchAlloc(list, Number($('b-amt').value || 0), rate, vr);
+      var got = {}; cur.parts.forEach(function (p) { got[p.id] = p; });
+      rs.forEach(function (x) { var el = $('b-a' + x.id), p = got[x.id]; if (!el) return;
+        el.textContent = p ? (p.full ? 'paid in full' : 'part: ' + money(p.cash + p.cwt)) : ''; el.className = p ? (p.full ? 'pill g' : 'pill o') : ''; });
+      var cash = cur.parts.reduce(function (a, p) { return a + p.cash; }, 0), tax = cur.parts.reduce(function (a, p) { return a + p.cwt; }, 0);
+      $('b-sum').textContent = list.length + ' ticked. ' + money(cash) + ' cash' + (tax > 0 ? ' + ' + money(tax) + ' withheld' : '') + ' over ' + cur.parts.length + ' invoice(s).' +
+        (cur.left > 0.009 ? ' ' + money(cur.left) + ' is MORE than the ticked invoices need.' : '');
+    }
+    dr.querySelectorAll('.b-ck').forEach(function (c) { c.onchange = function () { typed = false; upd(); }; });
+    $('b-amt').oninput = function () { typed = true; upd(); };
+    $('b-rate').onchange = function () { typed = false; upd(); };
+    upd();
+    $('b-go').onclick = async function () {
+      upd();
+      var err = $('b-err'), b = $('b-go');
+      if (!cur || !cur.parts.length) { err.textContent = 'Tick the invoices and enter the amount received.'; return; }
+      if (cur.left > 0.009) { err.textContent = 'The amount is ' + money(cur.left) + ' more than the ticked invoices need. Tick more or lower the amount.'; return; }
+      var cash = cur.parts.reduce(function (a, p) { return a + p.cash; }, 0);
+      if (!confirm('Record ' + money(cash) + ' from ' + name + ' against ' + cur.parts.length + ' invoice(s)?')) return;
+      b.disabled = true; err.textContent = 'Saving...';
+      try {
+        var r;
+        if (cur.parts.length === 1) {
+          var p = cur.parts[0];
+          r = await rpc('goos_m_pay', {p_token: S.token, p_order: String(p.id), p_amount: p.cash.toFixed(2), p_date: $('b-date').value,
+            p_account: $('b-acct').value, p_ref: $('b-ref').value, p_cwt: p.cwt.toFixed(2), p_rate: $('b-rate').value, p_cert: $('b-cert').value});
+        } else {
+          r = await rpc('goos_m_paybatch', {p_token: S.token,
+            p_orders: cur.parts.map(function (p) { return String(p.id); }).join(','),
+            p_amounts: cur.parts.map(function (p) { return p.cash.toFixed(2); }).join(','),
+            p_cwts: cur.parts.map(function (p) { return p.cwt.toFixed(2); }).join(','),
+            p_date: $('b-date').value, p_account: $('b-acct').value, p_ref: $('b-ref').value, p_rate: $('b-rate').value});
+        }
+        if (r.error === 'signin') { close(); S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+        if (!r.ok) { err.textContent = r.error; b.disabled = false; return; }
+      } catch (e) { err.textContent = 'Could not reach GOOS - nothing was recorded. Check the internet and try again.'; b.disabled = false; return; }
+      dr.innerHTML = '<h1 style="font-size:22px">Payment sent</h1><div class="ok">' + money(cash) + ' from ' + esc(name) + ' is queued. An open GOOS laptop posts it within a minute; the balance then updates here.</div>' +
+        '<div><button class="btn dark" id="dx">Done</button></div>';
+      $('dx').onclick = function () { close(); go(V.page, V.arg); };
+    };
+  });
+}
+
+/* ---------------------------------------------------------------- approvals */
+var ACTW = {approve: 'Approve', reject: 'Reject'};
+async function pageApprovals() {
+  var d = await data('approvals'), items = d.items || [], decs = d.decisions || [];
+  V.sel = V.sel || {};
+  var can_ = !!d.can_sign;
+  var rows = items.map(function (x) {
+    var k = x.kind + ':' + x.id, blocked = x.sent || x.mine || (x.kind === 'dispatch' && !d.ceo);
+    var why = x.sent ? '<span class="pill">Sent - being carried out</span>' : (x.mine ? '<span class="pill y">Your own - someone else signs</span>' :
+      (x.kind === 'dispatch' && !d.ceo ? '<span class="pill y">CEO signs</span>' : ''));
+    var prev = x.lines ? '<div class="mut" style="white-space:pre-wrap;margin-top:6px">' + esc(x.lines) + '</div>' : '';
+    var prob = x.problems ? '<div class="pill r" style="display:inline-block;margin-top:6px;white-space:normal">' + esc(x.problems) + '</div>' : '';
+    return '<tr><td>' + (can_ && !blocked ? '<input type="checkbox" class="a-ck" value="' + esc(k) + '"' + (V.sel[k] ? ' checked' : '') + '>' : '') + '</td>' +
+      '<td><b>' + esc(x.label) + '</b><br><span class="mut">' + esc(day(x.at)) + (x.who ? ' \u00b7 ' + esc(x.who) : '') + '</span></td>' +
+      '<td><b>' + esc(x.what) + '</b><br>' + esc(x.detail) + (x.remarks ? '<br><span class="mut">' + esc(x.remarks) + '</span>' : '') + prev + prob + '</td><td class="n">' + why + '</td></tr>';
+  }).join('');
+  var decH = decs.map(function (m) {
+    var cls = m.status === 'done' ? 'g' : (m.status === 'failed' ? 'r' : 'o');
+    return '<li><span>' + esc(m.at) + ' \u00b7 ' + esc(m.action) + ' ' + esc(m.kind) + ' #' + esc(m.ref_id) + (m.result ? '<br><span class="mut">' + esc(String(m.result).slice(0, 160)) + '</span>' : '') +
+      '</span><span class="pill ' + cls + '">' + esc(m.status) + '</span></li>'; }).join('');
+  $('main').innerHTML = head('Approvals', 'For approval', can_ ? '<button class="btn" id="a-all">Tick all</button><button class="btn" id="a-rej">Reject ticked</button><button class="btn dark" id="a-ok">Approve ticked</button>' : '') +
+    laptopsNote(d.laptops) + (can_ ? '' : '<div class="ok">You can see what is waiting. Signing is for the CEO and QA.</div>') +
+    '<div class="card">' + (items.length ? '<table><tr><th></th><th>What</th><th>Details</th><th></th></tr>' + rows + '</table>' : '<div class="empty">Nothing is waiting for approval.</div>') + '</div>' +
+    (decH ? '<div class="card"><h2>Your recent decisions</h2><ul class="list">' + decH + '</ul></div>' : '');
+  document.querySelectorAll('.a-ck').forEach(function (c) { c.onchange = function () { if (c.checked) V.sel[c.value] = 1; else delete V.sel[c.value]; }; });
+  if (!can_) return;
+  $('a-all').onclick = function () { document.querySelectorAll('.a-ck').forEach(function (c) { c.checked = true; V.sel[c.value] = 1; }); };
+  $('a-ok').onclick = function () { openSign('approve'); };
+  $('a-rej').onclick = function () { openSign('reject'); };
+  if (decs.some(function (m) { return m.status === 'queued' || m.status === 'working'; })) {
+    clearTimeout(V.poll); V.poll = setTimeout(function () { if (V.page === 'approvals' && !document.querySelector('.drawer-bg')) go('approvals', ''); }, 8000);
+  }
+}
+function openSign(action) {
+  var keys = Object.keys(V.sel || {});
+  if (!keys.length) { alert('Tick the items first.'); return; }
+  drawer(function (dr, close) {
+    var pos = ''; try { pos = localStorage.getItem('goos_position') || ''; } catch (e) {}
+    dr.innerHTML = '<div class="row"><h1 style="font-size:22px">' + ACTW[action] + ' ' + keys.length + ' item(s)</h1><button class="btn" id="dx">Close</button></div>' +
+      '<div class="mut">' + (action === 'approve' ? 'Signing carries these out exactly as For Approval on the laptop does. Anything that can no longer be done stays waiting, and you will see why.'
+        : 'Nothing changes in stock. Each stays on record as Rejected, with your reason.') + '</div><div class="form">' +
+      (action === 'reject' ? fld('Reason (required)', 'sg-note', '') : fld('Note (optional)', 'sg-note', '')) +
+      fld('Your full name', 'sg-name', '', 'text', ' autocomplete="name"') + fld('Your position', 'sg-pos', pos) +
+      fld('Your GOOS password', 'sg-pw', '', 'password', ' autocomplete="current-password"') + '</div>' +
+      '<div class="err" id="sg-err"></div><div class="btns"><button class="btn dark" id="sg-go">Sign and ' + action + '</button></div>';
+    $('dx').onclick = close;
+    $('sg-go').onclick = async function () {
+      var name = $('sg-name').value.trim(), p = $('sg-pos').value.trim(), pw = $('sg-pw').value, note = $('sg-note').value.trim(), err = $('sg-err');
+      if (!name || p.length < 2 || !pw) { err.textContent = 'Type your full name, your position and your password to sign.'; return; }
+      if (action === 'reject' && !note) { err.textContent = 'Type the reason for rejecting.'; return; }
+      $('sg-go').disabled = true; err.textContent = 'Signing...';
+      var byKind = {}; keys.forEach(function (k) { var q = k.split(':'); (byKind[q[0]] = byKind[q[0]] || []).push(q[1]); });
+      var queued = 0, skipped = [], fail = '';
+      try {
+        var salt = await rpc('goos_m_salt', {p_user: S.user});
+        var h = await pbkdf2Hex(pw, String(salt));
+        for (var kind in byKind) {
+          var r = await rpc('goos_m_decide', {p_token: S.token, p_kind: kind, p_ids: byKind[kind].join(','), p_action: action,
+                                              p_name: name, p_position: p, p_hash: h, p_note: note});
+          if (!r.ok) { if (r.error === 'signin') { close(); S.token = ''; save(); drawLogin('Please sign in again.'); return; } fail = r.error; break; }
+          queued += r.queued || 0; skipped = skipped.concat(r.skipped || []);
+        }
+      } catch (e) { fail = 'Could not reach GOOS. Check the internet and try again.'; }
+      if (fail && !queued) { err.textContent = fail; $('sg-go').disabled = false; return; }
+      try { localStorage.setItem('goos_position', p); } catch (e) {}
+      V.sel = {};
+      dr.innerHTML = '<h1 style="font-size:22px">' + (queued ? 'Signed' : 'Nothing signed') + '</h1><div class="ok">' + queued + ' item(s) sent. A GOOS laptop carries them out within a minute - watch "Your recent decisions".</div>' +
+        (skipped.length ? '<div class="alert">Not sent:<br>' + skipped.map(esc).join('<br>') + '</div>' : '') + (fail ? '<div class="alert">' + esc(fail) + '</div>' : '') +
+        '<div><button class="btn dark" id="dx">OK</button></div>';
+      $('dx').onclick = function () { close(); go('approvals', ''); };
+    };
+  });
+}
+
+/* ---------------------------------------------------------------- start */
+load();
+window.addEventListener('hashchange', function () {
+  var h = location.hash.replace(/^#/, ''), p = h.split(':');
+  if (S.token && p[0] && (p[0] !== V.page || (p[1] || '') !== V.arg)) { V.q = ''; go(p[0], p[1] || ''); }
+});
+if (S.token) { var h0 = location.hash.replace(/^#/, '').split(':'); go(h0[0] || 'dashboard', h0[1] || ''); } else drawLogin('');
+</script>
+</body>
+</html>

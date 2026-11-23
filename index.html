@@ -147,7 +147,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.139'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.158'};
 var VIEWS = {
   dashboard: 'Dashboard', quotes: 'Quotations', orders: 'Orders', collections: 'Collections',
   customers: 'Customers', finished: 'Finished Goods', lots: 'LOTs',
@@ -296,7 +296,8 @@ function draw() {
     S.view === 'quotes' ? (S.arg === 'form' ? (S.qf && S.qf.id ? 'Edit quotation' : 'New quotation') : 'Quotation') :
     S.view === 'collections' ? (S.arg === 'mine' ? 'Payments you recorded' : S.arg === 'soa' ? 'Statements of account' :
       S.arg.indexOf('rcpt:') === 0 ? 'Receipt' :
-      S.arg.indexOf('soa:') === 0 ? 'Statement of account' : 'Record payment') :
+      S.arg.indexOf('soa:') === 0 ? 'Statement of account' :
+      S.arg.indexOf('batch:') === 0 ? 'Pay several invoices' : 'Record payment') :
     S.view === 'production' ? (S.arg === 'new' ? 'New schedule' : S.arg === 'saved' ? 'Saved schedules' :
       S.arg.indexOf('edit:') === 0 ? 'Edit schedule' : 'Production') :
     S.view === 'advisor' ? (S.arg === 'past' ? 'Past answers' : 'Answer') : 'Order';
@@ -368,6 +369,7 @@ function draw() {
   if (S.view === 'quotes' && S.arg && S.arg !== 'form' && S.data && !S.data.error) wireQuoteView();
   if (S.view === 'collections' && S.arg.indexOf('soa:') === 0 && S.data && !S.data.error) wireSoa();
   else if (S.view === 'collections' && S.arg.indexOf('rcpt:') === 0 && S.data && !S.data.error) wireRcpt();
+  else if (S.view === 'collections' && S.arg.indexOf('batch:') === 0 && S.data && !S.data.error) wireBatch();
   else if (S.view === 'collections' && S.arg && S.arg !== 'mine' && S.arg !== 'soa' && S.data && !S.data.error) wirePay();
   if ($('q-new')) $('q-new').onclick = function () { S.qf = null; go('quotes', 'form'); };
   if (S.view === 'advisor' && S.data && !S.data.error) wireAi();
@@ -447,6 +449,7 @@ var SCREENS = {
     if (S.arg === 'soa') return soaList(d);
     if (S.arg.indexOf('rcpt:') === 0) return rcptView(d);
     if (S.arg.indexOf('soa:') === 0) return soaView(d);
+    if (S.arg.indexOf('batch:') === 0) return batchPayScreen(d);
     if (S.arg) return payScreen(d);
     var list = d.filter(function (o) { return hit(o, ['customer_name', 'reference', 'agent']); });
     var tot = list.reduce(function (a, o) { return a + Number(o.owed); }, 0);
@@ -1522,6 +1525,8 @@ function soaView(d) {
   if (!(d.rows || []).length) return '<div class="empty">' + esc(d.customer.trade_name) + ' has no unpaid invoices.</div>';
   return '<div class="bar2"><button class="btn" id="s-img">Share as picture</button>' +
     '<button class="btn ghost" id="s-pdf" style="margin-top:0">Save as PDF</button></div>' +
+    '<button class="btn ghost" style="margin:0 0 10px" data-go="collections:batch:' + d.customer.id +
+    '">Record one payment for several invoices</button>' +
     '<div class="err" id="s-msg"></div>' + soaDoc(d);
 }
 function wireSoa() {
@@ -1769,6 +1774,103 @@ function wirePay() {
       var r = await rpc('goos_m_pay', {p_token: S.token, p_order: String(o.id), p_amount: String(amt),
         p_date: $('p-date').value, p_account: $('p-acct').value, p_ref: $('p-ref').value,
         p_cwt: String(tax), p_rate: $('p-rate').value, p_cert: $('p-cert').value});
+      if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); return; }
+      if (!r.ok) { err.textContent = r.error; b.disabled = false; return; }
+      S.poll = 24; await go('collections', 'mine'); schedulePoll();
+    } catch (e) {
+      err.textContent = 'Could not reach GOOS - nothing was recorded. Check the internet and try again.';
+      b.disabled = false;
+    }
+  };
+}
+/* 3.99.141 - one payment for several invoices: settled oldest first, the
+   last one part-paid if the money runs out - the same rule as GOOS on the
+   laptop. */
+function batchAlloc(list, cash, rate, vr) {
+  var left = Math.round(cash * 100) / 100, out = [];
+  var k = 1 - (vr ? rate / (1 + vr) : rate);
+  list.forEach(function (x) {
+    var owed = Number(x.bal);
+    if (left <= 0.004 || owed <= 0) return;
+    var tax = 0, need = owed;
+    if (rate) { var base = vr ? Math.round(owed / (1 + vr) * 100) / 100 : owed;
+                tax = Math.round(base * rate * 100) / 100; need = Math.round((owed - tax) * 100) / 100; }
+    if (left + 0.004 >= need) { out.push({id: x.id, cash: need, cwt: tax, full: true}); left = Math.round((left - need) * 100) / 100; }
+    else { var settle = k > 0 ? Math.round(left / k * 100) / 100 : left;
+           out.push({id: x.id, cash: left, cwt: rate ? Math.round((settle - left) * 100) / 100 : 0, full: false}); left = 0; }
+  });
+  return {parts: out, left: Math.round(left * 100) / 100};
+}
+function batchPayScreen(d) {
+  if (!d.customer) return '<div class="empty">That customer is no longer there.</div>';
+  var rs = d.rows || [], accts = d.accounts || [];
+  var html = '<div class="sum">' + esc(d.customer.trade_name) + '<br><span style="font-size:13px">One payment for several invoices</span></div>';
+  if (!d.laptops) html += '<div class="banner warn">No GOOS laptop is open right now. The payment is kept safely and posted as soon as one opens.</div>';
+  if (!rs.length) return html + '<div class="empty">Nothing left to collect from this customer.</div>';
+  if (!accts.length) return html + '<div class="empty">Open GOOS on a laptop once so the phone learns where payments can go, then press Refresh.</div>';
+  var def = (rs[0] && rs[0].paid_to) || defaultAccount(accts, rs[0] && rs[0].payment_method);
+  return html + '<p class="stamp">Tick the invoices this payment is for. It settles them oldest first.</p>' +
+    '<div class="list">' + rs.map(function (x) {
+      return '<label class="row" style="display:block"><div class="t"><span><input type="checkbox" class="b-ck" value="' + x.id + '" checked> ' +
+        esc(x.si_no ? 'SI ' + x.si_no : x.reference) + (x.dr_no ? ' &middot; DR ' + esc(x.dr_no) : '') + '</span><span>' + peso(x.bal) +
+        '</span></div><div class="s"><span>' + esc(longDate(x.day)) + ' &middot; ' + x.age + ' days</span><span id="b-a' + x.id + '"></span></div></label>';
+    }).join('') + '</div>' +
+    fld('Amount received', 'b-amt', '', 'text', ' inputmode="decimal"') +
+    fld('Date received', 'b-date', d.today, 'date', ' max="' + esc(d.today) + '"') +
+    '<div class="fld"><label for="b-acct">Received into</label><select id="b-acct">' + accts.map(function (a) {
+      return '<option value="' + esc(a[0]) + '"' + (a[0] === def ? ' selected' : '') + '>' + esc(a[0] + ' - ' + a[1]) + '</option>'; }).join('') + '</select></div>' +
+    fld('Reference (deposit, check, GCash or bank ref) - optional', 'b-ref', '') +
+    '<div class="fld"><label for="b-rate">Tax withheld (BIR 2307) on each invoice</label><select id="b-rate">' +
+    '<option value="0">None</option><option value="0.01">1% - goods (WC158)</option>' +
+    '<option value="0.02">2% - services (WC160)</option></select></div>' +
+    '<p class="stamp" id="b-sum"></p><div class="err" id="b-err"></div><button class="btn" id="b-go">Record payment</button>';
+}
+function wireBatch() {
+  var b = $('b-go'); if (!b) return;
+  var d = S.data, rs = d.rows || [], vr = Number(d.vat_rate == null ? 0.12 : d.vat_rate), typed = false, cur = null;
+  function ticked() {
+    var on = {}; [].forEach.call(document.querySelectorAll('.b-ck'), function (c) { if (c.checked) on[c.value] = 1; });
+    return rs.filter(function (x) { return on[String(x.id)]; });
+  }
+  function upd() {
+    var list = ticked(), rate = Number($('b-rate').value);
+    if (!typed) {
+      var due = list.reduce(function (a, x) {
+        var o = Number(x.bal); if (!rate) return a + o;
+        var base = vr ? Math.round(o / (1 + vr) * 100) / 100 : o;
+        return a + o - Math.round(base * rate * 100) / 100; }, 0);
+      $('b-amt').value = list.length ? due.toFixed(2) : '';
+    }
+    cur = batchAlloc(list, Number($('b-amt').value || 0), rate, vr);
+    var got = {}; cur.parts.forEach(function (p) { got[p.id] = p; });
+    rs.forEach(function (x) {
+      var el = $('b-a' + x.id), p = got[x.id]; if (!el) return;
+      el.textContent = p ? (p.full ? 'paid in full' : 'part: ' + peso(p.cash + p.cwt)) : '';
+      el.className = p ? (p.full ? 'pill ok' : 'pill warn') : '';
+    });
+    var cash = cur.parts.reduce(function (a, p) { return a + p.cash; }, 0), tax = cur.parts.reduce(function (a, p) { return a + p.cwt; }, 0);
+    $('b-sum').textContent = list.length + ' ticked. ' + peso(cash) + ' cash' + (tax > 0 ? ' + ' + peso(tax) + ' withheld' : '') +
+      ' over ' + cur.parts.length + ' invoice(s).' + (cur.left > 0.009 ? ' ' + peso(cur.left) + ' is MORE than the ticked invoices need.' : '');
+  }
+  [].forEach.call(document.querySelectorAll('.b-ck'), function (c) { c.onchange = upd; });
+  $('b-amt').oninput = function () { typed = true; upd(); };
+  $('b-rate').onchange = function () { typed = false; upd(); };
+  upd();
+  b.onclick = async function () {
+    upd();
+    var err = $('b-err');
+    if (!cur || !cur.parts.length) { err.textContent = 'Tick the invoices and enter the amount received.'; return; }
+    if (cur.left > 0.009) { err.textContent = 'The amount is ' + peso(cur.left) + ' more than the ticked invoices need. Tick more or lower the amount.'; return; }
+    var cash = cur.parts.reduce(function (a, p) { return a + p.cash; }, 0);
+    if (!confirm('Record ' + peso(cash) + ' from ' + d.customer.trade_name + ' against ' + cur.parts.length + ' invoice(s)?')) return;
+    b.disabled = true; err.textContent = 'Saving...';
+    try {
+      var r = await rpc('goos_m_paybatch', {p_token: S.token,
+        p_orders: cur.parts.map(function (p) { return String(p.id); }).join(','),
+        p_amounts: cur.parts.map(function (p) { return p.cash.toFixed(2); }).join(','),
+        p_cwts: cur.parts.map(function (p) { return p.cwt.toFixed(2); }).join(','),
+        p_date: $('b-date').value, p_account: $('b-acct').value, p_ref: $('b-ref').value,
+        p_rate: $('b-rate').value});
       if (r.error === 'signin') { S.token = ''; save(); drawLogin('Please sign in again.'); return; }
       if (!r.ok) { err.textContent = r.error; b.disabled = false; return; }
       S.poll = 24; await go('collections', 'mine'); schedulePoll();

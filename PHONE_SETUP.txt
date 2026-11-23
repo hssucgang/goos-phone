@@ -26,4 +26,12 @@ WHEN GOOS IS UPDATED
  Run Phone App again in GOOS and upload the new files the same way
  (Add file > Upload files, replace). Nothing to do on the phones.
 
+GOOS WEB ON A LAPTOP (monday.com-style view)
+ The same upload also publishes desk.html. On any laptop, open
+   https://YOURNAME.github.io/goos-phone/desk.html
+ in Chrome or Edge and sign in with the normal GOOS username and password.
+ It shows the Dashboard, For approval, the Orders board, Customers and
+ Lots & Expiry, and takes payments and approvals (an open GOOS laptop
+ posts them, as for the phone). Printing and payroll stay in GOOS.
+
 The address is public but shows nothing without a GOOS sign-in.
