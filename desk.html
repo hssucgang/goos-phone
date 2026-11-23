@@ -22,6 +22,29 @@ a { color: inherit; }
 .nav:hover { background: rgba(255,255,255,.07); }
 .nav.on { background: rgba(217,164,65,.18); color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--gold); }
 .nav .n { margin-left: auto; background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+/* 3.99.169 - fits any laptop: the sidebar scrolls on its own, grids wrap
+   instead of squeezing, wide tables scroll inside their card, long words
+   break - so nothing overlaps on a small screen */
+.navs { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -6px; padding: 0 6px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; }
+.navs::-webkit-scrollbar { width: 8px; } .navs::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 8px; }
+.sect { margin-top: 6px; }
+.shead { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; cursor: pointer; padding: 8px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-align: left; }
+.shead .car { color: #AEB6C8; width: 10px; } .shead .cnt { margin-left: auto; color: #8194B8; font-weight: 400; }
+.shead:hover { background: rgba(255,255,255,.05); border-radius: 8px; }
+.slist .nav { padding-left: 22px; }
+.nav { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.main { min-width: 0; }
+.card { min-width: 0; overflow-x: auto; }
+.card table { min-width: 520px; }
+td, th { overflow-wrap: anywhere; }
+.top > div:first-child { min-width: 0; } h1 { overflow-wrap: anywhere; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important; }
+.grid2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)) !important; }
+.row { flex-wrap: wrap; }
+.drawer { max-width: 100vw; }
+.card::-webkit-scrollbar, .drawer::-webkit-scrollbar { height: 9px; width: 9px; }
+.card::-webkit-scrollbar-thumb, .drawer::-webkit-scrollbar-thumb { background: #C9C5B8; border-radius: 8px; }
+@media (max-width: 1280px) { .side { width: 210px; } .main { padding: 22px 20px 36px; } }
 .me { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid rgba(255,255,255,.12); font-size: 13px; }
 .me b { display: block; } .me span { color: #AEB6C8; font-size: 12px; }
 .me button { margin-top: 10px; width: 100%; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: none; color: #fff; cursor: pointer; }
@@ -112,12 +135,12 @@ tr.click { cursor: pointer; } tr.click:hover td { background: #FAF9F5; }
 <body>
 <div id="app"></div>
 <script>
-/* GOOS Web (3.99.166) - the laptop-browser face of GOOS. It reads the
+/* GOOS Web (3.99.171) - the laptop-browser face of GOOS. It reads the
    SAME server functions as the phone app (goos_m_*), so it shows exactly what
    GOOS shows and needs nothing new on the server. Changes that move stock or
    money stay in desktop GOOS for now: those rules live there once, and a
    second copy here would drift. */
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.166'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.171'};
 var PESO = '\u20b1';
 var S = {token: '', name: '', user: '', role: '', views: []};
 var V = {page: 'dashboard', arg: '', agent: '', q: '', cache: {}};
@@ -212,23 +235,53 @@ async function signOut() {
 }
 
 /* ---------------------------------------------------------------- frame */
-var NAV = [['dashboard', 'Dashboard', '\u25a3'], ['approvals', 'For approval', '\u2713'], ['advisor', 'Strategy Advisor', '\u2605'],
-           ['production', 'Production', '\u2699'], ['quotes', 'Quotations', '\u270e'], ['orders', 'Orders', '\u25a4'],
-           ['collections', 'Collections', '\u20b1'], ['customers', 'Customers', '\u263a'], ['pricing', 'Products & prices', '\u2261'], ['finished', 'Finished Goods', '\u25a6'],
-           ['lots', 'Lots & Expiry', '\u25d4'], ['raw', 'Raw Materials', '\u25a7'], ['purchases', 'Purchases', '\u21e9'], ['accounting', 'Accounting', '\u2696'], ['expenses', 'Expenses', '\u2709'], ['qa', 'QA', '\u2714']];
+var NAV = [['dashboard', 'Dashboard', '\u2302', ''],
+  ['advisor', 'Strategy Advisor', '\u2605', 'MANAGEMENT'], ['approvals', 'For Approval', '\u2713', 'MANAGEMENT'],
+  ['pricing', 'Pricing', '\u20b1', 'MANAGEMENT'], ['accounting', 'Accounting', '\u2211', 'MANAGEMENT'],
+  ['expenses', 'Expenses', '\u2296', 'MANAGEMENT'], ['purchases', 'Purchases', '\u229e', 'MANAGEMENT'],
+  ['collections', 'Collections', '\u20b1', 'MANAGEMENT'],
+  ['orders', 'Logistics', '\u27f6', 'COMMISSARY ADMINISTRATION'],
+  ['production', 'Schedule Production', '\u2699', 'MANUFACTURING'],
+  ['qa', 'QA Database', '\u2714', 'QUALITY ASSURANCE'],
+  ['raw', 'Raw Materials', '\u2749', 'INVENTORY MANAGEMENT'], ['finished', 'Finished Goods', '\u25d3', 'INVENTORY MANAGEMENT'],
+  ['lots', 'Lots & Expiry', '\u25d4', 'INVENTORY MANAGEMENT'],
+  ['quotes', 'Sales Quotations', '\u270e', 'SALES DEPARTMENT'], ['customers', 'Customer Info', '\u2637', 'SALES DEPARTMENT']];
+/* 3.99.169 - the sidebar is the desktop's: the same sections, names and
+   order, each a fold-out list, with the section colours */
+var SECT = ['', 'MANAGEMENT', 'COMMISSARY ADMINISTRATION', 'MANUFACTURING', 'QUALITY ASSURANCE', 'INVENTORY MANAGEMENT', 'SALES DEPARTMENT'];
+var SECT_COL = {'': '#8C9BE0', 'MANAGEMENT': '#D9A441', 'COMMISSARY ADMINISTRATION': '#4CAF7D', 'MANUFACTURING': '#E07A62',
+  'QUALITY ASSURANCE': '#3FB59D', 'INVENTORY MANAGEMENT': '#A58BD6', 'SALES DEPARTMENT': '#4FB3C2'};
 /* 3.99.161 - the phone app's screens GOOS Web has not rebuilt yet open the
    phone's own screen inside this page, signed in, so everything the phone
    does is here too. One by one they are rebuilt in the web's own layout. */
-var EMBEDDED = {advisor: 1, production: 1, quotes: 1, collections: 1, finished: 1, qa: 1};
+var EMBEDDED = {advisor: 1, production: 1, quotes: 1, collections: 1, qa: 1};
 function frame(inner) {
-  var nav = NAV.filter(function (n) { return n[0] === 'dashboard' || can(n[0]); }).map(function (n) {
-    return '<button class="nav' + (V.page === n[0] ? ' on' : '') + '" data-go="' + n[0] + '"><span>' + n[2] + '</span>' + esc(n[1]) + '</button>';
+  var openS = {}; try { openS = JSON.parse(localStorage.getItem('goos_web_open') || '{}'); } catch (e) {}
+  var nav = SECT.map(function (sec) {
+    var items = NAV.filter(function (n) { return n[3] === sec && (n[0] === 'dashboard' || can(n[0])); });
+    if (!items.length) return '';
+    var here = items.some(function (n) { return n[0] === V.page; }), isOpen = !sec || here || openS[sec];
+    var list = items.map(function (n) {
+      return '<button class="nav' + (V.page === n[0] ? ' on' : '') + '" data-go="' + n[0] + '"><span style="color:' + SECT_COL[sec] + '">' + n[2] + '</span>' + esc(n[1]) + '</button>'; }).join('');
+    if (!sec) return list;
+    return '<div class="sect"><button class="shead" data-sect="' + esc(sec) + '" aria-expanded="' + (isOpen ? 'true' : 'false') + '"><span class="car">' + (isOpen ? '\u25be' : '\u25b8') + '</span>' +
+      '<span style="color:' + SECT_COL[sec] + '">' + esc(sec) + '</span><span class="cnt">' + items.length + '</span></button><div class="slist"' + (isOpen ? '' : ' hidden') + '>' + list + '</div></div>';
   }).join('');
-  $('app').innerHTML = '<div class="mtop"><button id="burger" aria-label="Menu">\u2630</button><b>GOOS</b></div><div class="shell"><aside class="side" id="side"><div class="brand">GRAIN OLA<small>GOOS Web</small></div><div class="rule"></div>' +
-    nav + '<div class="me"><b>' + esc(S.name) + '</b><span>' + esc(S.role) + '</span>' +
+  $('app').innerHTML = '<div class="mtop"><button id="burger" aria-label="Menu">\u2630</button><b>GOOS</b></div><div class="shell"><aside class="side" id="side"><div class="brand">GRAIN OLA<small>GOOS Web</small></div><div class="rule"></div><nav class="navs">' +
+    nav + '</nav><div class="me"><b>' + esc(S.name) + '</b><span>' + esc(S.role) + '</span>' +
     '<button id="out">Sign out</button><div class="foot" style="color:#AEB6C8;margin-top:8px">GOOS Web ' + esc(CFG.version) + '</div></div></aside>' +
-    '<main class="main" id="main">' + inner + '</main></div>';
+    '<main class="main" id="main">' + inner + '</main></div><button id="totop" title="Back to the top" style="position:fixed;right:18px;bottom:18px;display:none;border:0;border-radius:50%;width:42px;height:42px;background:#18233F;color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:7">\u2191</button>';
   $('out').onclick = signOut;
+  $('totop').onclick = function () { window.scrollTo({top: 0, behavior: 'smooth'}); };
+  window.onscroll = function () { var b = $('totop'); if (b) b.style.display = window.scrollY > 500 ? 'block' : 'none'; };
+  document.querySelectorAll('[data-sect]').forEach(function (h) { h.onclick = function () {
+    var box = h.nextSibling, open = box.hasAttribute('hidden'), st = {};
+    try { st = JSON.parse(localStorage.getItem('goos_web_open') || '{}'); } catch (e) {}
+    if (open) box.removeAttribute('hidden'); else box.setAttribute('hidden', '');
+    h.setAttribute('aria-expanded', open ? 'true' : 'false'); h.firstChild.textContent = open ? '\u25be' : '\u25b8';
+    st[h.getAttribute('data-sect')] = open; try { localStorage.setItem('goos_web_open', JSON.stringify(st)); } catch (e) {}
+  }; });
+  var onb = document.querySelector('.nav.on'); if (onb && onb.scrollIntoView) onb.scrollIntoView({block: 'nearest'});
   $('burger').onclick = function (e) { e.stopPropagation(); $('side').classList.toggle('open'); };
   $('side').onclick = function (e) { if (e.target === $('side')) $('side').classList.remove('open'); };
   wire(document);
@@ -261,6 +314,7 @@ async function go(page, arg) {
     else if (page === 'approvals') await pageApprovals();
     else if (page === 'pricing') await pagePricing();
     else if (page === 'raw') await pageRaw();
+    else if (page === 'finished') await pageFinished();
     else if (page === 'purchases') await pagePurchases();
     else if (page === 'accounting') await pageAccounting();
     else if (page === 'expenses') await pageExpenses();
@@ -353,46 +407,55 @@ async function pageDashboard() {
 
 /* ---------------------------------------------------------------- orders board */
 async function pageOrders() {
-  var orders = await data('orders');
-  V.cache.orders = orders;
-  var custs = can('customers') ? await data('customers') : [];
-  var agentOf = {};
-  custs.forEach(function (c) { agentOf[String(c.name || '').toLowerCase()] = c.agent || ''; });
-  var agents = []; custs.forEach(function (c) { if (c.agent && agents.indexOf(c.agent) < 0) agents.push(c.agent); });
-  agents.sort();
-  var q = V.q.toLowerCase(), onlyOwed = V.arg === 'owed';
-  var paidCut = 30;
-  var groups = {}; COLS.forEach(function (c) { groups[c[0]] = []; });
-  orders.forEach(function (o) {
-    var b = bucket(o); if (!b) return;
-    if (b === 'paid' && (daysAgo(o.day) || 0) > paidCut) return;
-    if (onlyOwed && b !== 'unpaid' && b !== 'overdue') return;
-    if (V.agent && (agentOf[String(o.customer_name || '').toLowerCase()] || '') !== V.agent) return;
-    if (q && (String(o.customer_name) + ' ' + String(o.reference)).toLowerCase().indexOf(q) < 0) return;
-    groups[b].push(o);
-  });
-  var cols = COLS.map(function (c) {
-    var list = groups[c[0]], sum = list.reduce(function (s, o) {
-      return s + (c[0] === 'unpaid' || c[0] === 'overdue' ? Number(o.total || 0) - Number(o.paid || 0) : Number(o.total || 0)); }, 0);
-    return '<section class="col" data-col="' + c[0] + '"><div class="colh"><span><i style="background:' + c[2] + '"></i>' + esc(c[1]) + '</span><span class="mut">' + list.length + '</span></div>' +
-      '<div class="mut" style="padding:0 4px">' + money0(sum) + '</div>' +
-      (list.map(function (o) { return ocard(o, c[0]); }).join('') || '<div class="empty" style="padding:8px 4px">None</div>') + '</section>';
-  }).join('');
+  /* 3.99.168 - laid out like the desktop Logistics tab (1. Drafts, 2.
+     Confirmed / paid, 3. Dispatched, Cancelled), with the same columns and
+     button names, so staff move between the two without relearning. */
+  var got = await Promise.all([ordr('list'), orderJobs()]);
+  var L = got[0], rows = L.rows || [], busy = {}, jobsH = got[1];
+  (L.busy || []).forEach(function (i) { busy[String(i)] = 1; });
+  var showPaid = false; try { showPaid = localStorage.getItem('goos_web_showpaid') === '1'; } catch (e) {}
+  var q = V.q.toLowerCase();
+  var agents = []; rows.forEach(function (r) { if (r.agent && agents.indexOf(r.agent) < 0) agents.push(r.agent); }); agents.sort();
+  rows = rows.filter(function (r) { return (!V.agent || r.agent === V.agent) && (!q || (r.customer + ' ' + r.reference + ' ' + r.si + ' ' + r.dr + ' ' + r.shop).toLowerCase().indexOf(q) >= 0); });
+  function owed(r) { return Number(r.total || 0) - Number(r.paid || 0); }
+  function deliv(r) { return esc(day(r.delivery) || '-'); }
+  function cust(r) { return '<b>' + esc(r.customer || '-') + '</b>' + (r.shop ? ' <span class="pill">Shopify ' + esc(r.shop) + '</span>' : '') + (busy[String(r.id)] ? ' <span class="pill o">request waiting</span>' : ''); }
+  function section(title, sub, heads, list, cells, empty) {
+    return '<div class="card"><div class="row" style="margin-bottom:6px"><div><h2 style="margin:0">' + esc(title) + ' <span class="mut" style="font-weight:400">' + list.length + '</span></h2><div class="mut">' + esc(sub) + '</div></div></div>' +
+      (list.length ? '<table><tr>' + heads.map(function (h, i) { return '<th' + (i === heads.length - 1 ? ' class="n"' : '') + '>' + esc(h) + '</th>'; }).join('') + '</tr>' +
+        list.map(function (r) { return '<tr class="click" data-order="' + r.id + '">' + cells(r).map(function (c, i, a) { return '<td' + (i === a.length - 1 ? ' class="n"' : '') + '>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>'
+        : '<div class="empty">' + esc(empty) + '</div>') + '</div>';
+  }
+  var drafts = rows.filter(function (r) { return r.state === 'new'; });
+  var conf = rows.filter(function (r) { return r.state === 'confirmed'; });
+  var disp = rows.filter(function (r) { return (r.state === 'dispatched' || r.state === 'recorded') && (showPaid || owed(r) > 0.009); });
+  var canc = rows.filter(function (r) { return r.state === 'cancelled'; });
   var chips = '<span class="chip' + (!V.agent ? ' on' : '') + '" data-agent="">All agents</span>' + agents.map(function (a) {
-    return '<span class="chip' + (V.agent === a ? ' on' : '') + '" data-agent="' + esc(a) + '">' + esc(a) + '</span>'; }).join('') +
-    '<span class="chip' + (onlyOwed ? ' on' : '') + '" data-owed="1">Only unpaid</span>';
-  var jobsH = await orderJobs();
-  $('main').innerHTML = head('Sales', 'Orders', can('orders') ? '<button class="btn dark" id="new-ord">+ New order</button>' : '') + jobsH +
-    '<div class="row" style="flex-wrap:wrap"><div class="chips">' + chips + '</div><input class="search" id="q" placeholder="Search customer or reference" value="' + esc(V.q) + '"></div>' +
-    '<div class="board">' + cols + '</div>' +
-    '<div class="foot">The newest 200 orders. Paid shows the last ' + paidCut + ' days. Click a card to confirm, dispatch or cancel it. An open GOOS laptop carries each step out with the desktop\'s own stock and LOT rules.</div>';
+    return '<span class="chip' + (V.agent === a ? ' on' : '') + '" data-agent="' + esc(a) + '">' + esc(a) + '</span>'; }).join('');
+  $('main').innerHTML = head('Sales', 'Logistics \u00b7 Orders', can('orders') ? '<button class="btn dark" id="new-ord">+ New Order</button>' : '') + jobsH + laptopsNote(L.laptops) +
+    '<div class="row" style="flex-wrap:wrap"><div class="chips">' + chips + '</div><input class="search" id="q" placeholder="Search customer, order, SI / DR" value="' + esc(V.q) + '"></div>' +
+    section('1. Drafts', 'orders just taken - click one to confirm or cancel', ['Order', 'Delivery', 'Customer', 'Items', 'Total'], drafts,
+      function (r) { return [esc(r.reference), deliv(r), cust(r), String(r.items), money(r.total)]; }, 'No drafts. Press + New Order.') +
+    section('2. Confirmed / paid', 'awaiting dispatch - click one to mark it dispatched (enter SI/DR)', ['Order', 'Delivery', 'Customer', 'Payment', 'Total'], conf,
+      function (r) { return [esc(r.reference), deliv(r), cust(r), esc(r.payment || '-'), money(r.total)]; }, 'No confirmed orders waiting.') +
+    '<div class="card"><div class="row" style="margin-bottom:6px;flex-wrap:wrap"><div><h2 style="margin:0">3. Dispatched <span class="mut" style="font-weight:400">' + disp.length + '</span></h2>' +
+      '<div class="mut">delivered; stock deducted' + (showPaid ? ' - last 60 days and anything still owed' : ' - still owed') + '</div></div>' +
+      '<label class="mut" style="cursor:pointer"><input type="checkbox" id="showpaid"' + (showPaid ? ' checked' : '') + '> Show paid orders too</label></div>' +
+      (disp.length ? '<table><tr><th>Order</th><th>Delivery</th><th>Customer</th><th>Payment</th><th>SI / DR</th><th class="n">Total</th></tr>' + disp.map(function (r) {
+        var o = owed(r);
+        return '<tr class="click" data-order="' + r.id + '"><td>' + esc(r.reference) + '</td><td>' + deliv(r) + '</td><td>' + cust(r) + '</td><td>' + esc(r.payment || '-') +
+          (o > 0.009 ? '<br><span class="pill o">' + money0(o) + ' owed</span>' : '<br><span class="pill g">Paid</span>') + '</td><td>' + esc([r.si && 'SI ' + r.si, r.dr && 'DR ' + r.dr].filter(Boolean).join(' / ') || '-') +
+          '</td><td class="n">' + money(r.total) + '</td></tr>'; }).join('') + '</table>' : '<div class="empty">' + (showPaid ? 'Nothing dispatched in the last 60 days.' : 'Nothing dispatched is still owed.') + '</div>') + '</div>' +
+    section('Cancelled', 'kept for the record - not part of the pipeline (last 30 days)', ['Order', 'Delivery', 'Customer', 'Total'], canc,
+      function (r) { return [esc(r.reference), deliv(r), cust(r), money(r.total)]; }, 'No cancelled orders.') +
+    '<div class="foot">Printing order slips and DRs, editing a draft\'s items, voiding (CEO) and deleting stay in GOOS on the laptop. Each step here is carried out by an open GOOS laptop with the desktop\'s own stock and LOT rules.</div>';
   if ($('new-ord')) $('new-ord').onclick = openNewOrder;
-  clearTimeout(V.poll);
-  if (V.jobsBusy) V.poll = setTimeout(function () { if (V.page === 'orders' && !document.querySelector('.drawer-bg') && document.activeElement !== $('q')) go('orders', V.arg); }, 8000);
+  $('showpaid').onchange = function () { try { localStorage.setItem('goos_web_showpaid', this.checked ? '1' : '0'); } catch (e) {} go('orders', V.arg); };
   document.querySelectorAll('[data-agent]').forEach(function (el) { el.onclick = function () { V.agent = el.getAttribute('data-agent'); go('orders', V.arg); }; });
-  document.querySelector('[data-owed]').onclick = function () { go('orders', onlyOwed ? '' : 'owed'); };
   var qi = $('q'), t = null;
   qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { V.q = qi.value; var pos = qi.value.length; go('orders', V.arg).then(function () { var n = $('q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); }, 300); };
+  clearTimeout(V.poll);
+  if (V.jobsBusy) V.poll = setTimeout(function () { if (V.page === 'orders' && !document.querySelector('.drawer-bg') && document.activeElement !== $('q')) go('orders', V.arg); }, 8000);
 }
 
 async function openOrder(id) {
@@ -486,8 +549,9 @@ async function pageCustomer(id) {
 
 /* ---------------------------------------------------------------- lots */
 async function pageLots() {
-  var got = await Promise.all([data('lots'), can('finished') ? data('finished') : Promise.resolve([])]);
-  var lots = got[0] || [], fg = got[1] || [];
+  var got = await Promise.all([data('lots'), can('finished') ? data('finished') : Promise.resolve([]), fgGroups()]);
+  var lots = got[0] || [], fg = got[1] || [], G = got[2] || {};
+  var fgId = {}; fg.forEach(function (f) { fgId[f.name] = f.id; });
   var by = {};
   lots.forEach(function (l) { (by[l.product] = by[l.product] || []).push(l); });
   var names = Object.keys(by);
@@ -495,7 +559,14 @@ async function pageLots() {
   names.sort(function (a, b) { return a.localeCompare(b); });
   var stockOf = {}; fg.forEach(function (f) { stockOf[f.name] = Number(f.stock || 0); });
   var q = V.q.toLowerCase(), off = [], exp7 = 0, held = 0, total = 0;
-  var rows = names.filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; }).map(function (n) {
+  var lastG = null;
+  var shown = names.filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; });
+  var gcount = {}; shown.forEach(function (n) { var l = groupOf(G, fgId[n], n).label; gcount[l] = (gcount[l] || 0) + 1; });
+  shown.sort(function (a, b) { var x = groupOf(G, fgId[a], a), y = groupOf(G, fgId[b], b); return String(x.k).localeCompare(String(y.k)) || x.label.localeCompare(y.label) || a.localeCompare(b); });
+  var rows = shown.map(function (n) {
+    var gl = groupOf(G, fgId[n], n).label, dv = '';
+    if (gl !== lastG) { lastG = gl; dv = '<div class="lotdiv" style="margin-top:14px;padding:8px 12px;border-radius:10px;font-weight:700;letter-spacing:.3px;background:' +
+      (/^CUSTOM/.test(gl) ? '#FBEBD8;color:#8A3F10' : (/^OTHER/.test(gl) ? '#ECEAE3;color:#5B6273' : '#E5ECF8;color:#1E4380')) + '">\u25be ' + esc(gl) + ' <span style="font-weight:400">(' + gcount[gl] + ')</span></div>'; }
     var ls = (by[n] || []).slice().sort(function (a, b) { return String(a.expires || '9999').localeCompare(String(b.expires || '9999')); });
     var inLots = ls.reduce(function (s, l) { return s + Number(l.left_qty || 0); }, 0);
     total += inLots;
@@ -510,7 +581,7 @@ async function pageLots() {
       return '<span class="lot" style="background:' + bg + ';color:' + fgc + '"><b>' + esc(l.lot || 'NO-LOT') + ' \u00b7 ' + num(l.left_qty) + '</b><span>' + (l.expires ? 'exp ' + esc(day(l.expires)) : 'no expiry') + note + '</span></span>';
     }).join('');
     var mis = n in stockOf && Math.abs(stockOf[n] - inLots) > 0.009;
-    return '<div class="lotrow"><div><b>' + esc(n) + '</b>' + (mis ? '<br><span class="pill r">total says ' + num(stockOf[n]) + '</span>' : '') + '</div>' +
+    return dv + '<div class="lotrow"><div><b>' + esc(n) + '</b>' + (mis ? '<br><span class="pill r">total says ' + num(stockOf[n]) + '</span>' : '') + '</div>' +
       '<div style="font-size:18px;font-weight:700">' + num(inLots) + ' <span class="mut" style="font-weight:400">in lots</span></div><div class="chips">' + (chips || '<span class="mut">No lot holds bottles</span>') + '</div></div>';
   }).join('');
   var banner = off.length ? '<div class="alert"><b>' + off.length + ' product(s): the total and the lots do not agree</b> - ' +
@@ -755,7 +826,7 @@ function openNewOrder() {
     var items = f.items || [], custs = f.customers || [];
     var byName = {}; items.forEach(function (i) { byName[i.name.toLowerCase()] = i; });
     var opts = items.map(function (i) { return '<option value="' + esc(i.name) + '">'; }).join('');
-    dr.innerHTML = '<div class="row"><div><div class="crumb">Orders</div><h1 style="font-size:22px">New order</h1></div><button class="btn" id="dx">Close</button></div>' +
+    dr.innerHTML = '<div class="row"><div><div class="crumb">Orders</div><h1 style="font-size:22px">New Order</h1></div><button class="btn" id="dx">Close</button></div>' +
       laptopsNote(f.laptops) + '<div class="form">' +
       '<label class="fl" style="grid-column:1/-1"><span>Customer</span><select id="n-cust"><option value="">- pick the customer -</option>' +
       custs.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('') + '</select></label>' +
@@ -768,7 +839,7 @@ function openNewOrder() {
       '<h2 style="margin-top:6px">Items</h2><div class="mut">The price comes from Pricing; type over it if this order\'s price differs.</div>' +
       '<table id="n-lines"><tr><th>Item</th><th class="n">Qty</th><th class="n">Unit price</th><th class="n">Amount</th><th></th></tr></table>' +
       '<div class="btns"><button class="btn" id="n-add">+ Add item</button><span style="margin-left:auto;font-weight:700" id="n-total"></span></div>' +
-      '<div class="err" id="n-err"></div><div class="btns"><button class="btn dark" id="n-go">Save order</button></div>' +
+      '<div class="err" id="n-err"></div><div class="btns"><button class="btn dark" id="n-go">Save Order</button></div>' +
       '<div class="mut">Stock is checked and the LOTs to send are chosen (oldest expiry first) when a GOOS laptop saves it, exactly as on the desktop.</div>';
     $('dx').onclick = close;
     var tbl = $('n-lines');
@@ -833,16 +904,16 @@ async function orderActions(box, o, close) {
     h += '<div class="form"><label class="fl"><span>Payment received via</span><select id="o-pay"><option value="">- choose -</option>' +
       pays.map(function (p) { return '<option' + (p === x.method ? ' selected' : '') + '>' + esc(p) + '</option>'; }).join('') + '</select></label></div>' +
       '<div class="mut">Choose "For Collection" if it will be collected on delivery or billed - nothing is recorded as received until the payment is logged. Any other choice records the money as IN.</div>' +
-      '<div class="err" id="o-err"></div><div class="btns"><button class="btn dark" id="o-conf">Confirm order</button><button class="btn" id="o-can">Cancel order</button></div>';
+      '<div class="err" id="o-err"></div><div class="btns"><button class="btn dark" id="o-conf">Confirm</button><button class="btn" id="o-can">Cancel</button></div>';
   } else {
     var needSi = /SI/.test(x.docs), needDr = /DR/.test(x.docs);
     h += '<div class="form">' + fld('SI number' + (needSi ? ' (required)' : ''), 'o-si', x.si) + fld('DR number' + (needDr ? ' (required)' : ''), 'o-dr', x.dr) + '</div>' +
       '<div class="mut">' + (x.docs ? 'This customer needs: ' + esc(x.docs) + '. ' : '') + 'These are the numbers on the paper receipts.</div>' +
       (x.auth ? '<div class="ok">CEO authorised: ' + esc(x.auth) + '</div>' : (x.auth_req ? '<div class="alert">Waiting for the CEO to authorise (asked ' + esc(x.auth_req) + ').</div>' : '')) +
       (info.ceo && !x.auth ? '<label class="mut"><input type="checkbox" id="o-auth"> If the bottles are not available yet, I authorise this dispatch (CEO)</label>' : '') +
-      '<div class="err" id="o-err"></div><div class="btns"><button class="btn dark" id="o-disp">Dispatch</button>' +
+      '<div class="err" id="o-err"></div><div class="btns"><button class="btn dark" id="o-disp">Mark Dispatched \u2013 enter SI/DR</button>' +
       (!info.ceo && !x.auth && !x.auth_req ? '<button class="btn" id="o-ask">Ask the CEO to authorise</button>' : '') +
-      '<button class="btn" id="o-can">Cancel order</button></div>' +
+      '<button class="btn" id="o-can">Cancel</button></div>' +
       '<div class="mut">If the bottles are not on the shelf (or still on hold for QA), GOOS refuses the dispatch unless the CEO authorises it - the same rule as the desktop.</div>';
   }
   box.innerHTML = h;
@@ -1311,6 +1382,64 @@ function openExpense(r) {
       if (await sendW(this, $('ex-err'), 'exp', 'post', r.id, {}, close)) sentBox(dr, close, 'EXP-' + r.id + ' will be posted to the ledger.', 'expenses', V.arg);
     };
   });
+}
+
+/* ---------------------------------------------------------------- product groups */
+/* 3.99.171 - Finished Goods and Lots & Expiry are grouped OURS / CUSTOM by
+   category, the same groups as the desktop (worked out by a GOOS laptop with
+   fg_groups and published) */
+async function fgGroups() {
+  if (V.cache.fgg && V.cache.fggAt > Date.now() - 300000) return V.cache.fgg;
+  var r;
+  try { r = await wreq('fgg', 'get'); } catch (e) { if (e.message === 'signin') throw e; return {}; }
+  V.cache.fgg = r.groups || {}; V.cache.fggAt = Date.now();
+  return V.cache.fgg;
+}
+function groupOf(G, fgId, name) {
+  var x = G[String(fgId)] || G['n:' + String(name || '').toLowerCase()];
+  return x || {k: '9', label: 'OTHER - not in Standardized Recipes'};
+}
+function groupRows(items, keyFn) {
+  /* -> [[label, [items...]], ...] in the groups' own order */
+  var by = {}, order = [];
+  items.forEach(function (it) { var gr = keyFn(it); if (!by[gr.label]) { by[gr.label] = {k: gr.k, rows: []}; order.push(gr.label); } by[gr.label].rows.push(it); });
+  order.sort(function (a, b) { return String(by[a].k).localeCompare(String(by[b].k)) || a.localeCompare(b); });
+  return order.map(function (l) { return [l, by[l].rows]; });
+}
+function divider(label, n, cols) {
+  var custom = /^CUSTOM/.test(label), other = /^OTHER/.test(label);
+  return '<tr class="gdiv"><td colspan="' + cols + '" style="background:' + (custom ? '#FBEBD8' : (other ? '#ECEAE3' : '#E5ECF8')) + ';color:' + (custom ? '#8A3F10' : (other ? '#5B6273' : '#1E4380')) +
+    ';font-weight:700;letter-spacing:.3px;border-radius:8px">\u25be ' + esc(label) + ' <span style="font-weight:400">(' + n + ')</span></td></tr>';
+}
+
+async function pageFinished() {
+  var got = await Promise.all([data('finished'), can('lots') ? data('lots') : Promise.resolve([]), fgGroups()]);
+  var fg = got[0] || [], lots = got[1] || [], G = got[2] || {}, q = V.q.toLowerCase(), f = V.arg || '';
+  var lotsBy = {}; lots.forEach(function (l) { (lotsBy[l.product] = lotsBy[l.product] || []).push(l); });
+  function state(r) { var s = Number(r.stock || 0), p = Number(r.par || 0); return s <= 0 ? 'out' : (p > 0 && s <= p ? 'low' : 'ok'); }
+  var counts = {low: 0, out: 0}; fg.forEach(function (r) { var s = state(r); if (counts[s] !== undefined) counts[s]++; });
+  var list = fg.filter(function (r) { return (!f || state(r) === f) && (!q || String(r.name).toLowerCase().indexOf(q) >= 0); });
+  var groups = groupRows(list, function (r) { return groupOf(G, r.id, r.name); });
+  var body = groups.map(function (gp) {
+    return divider(gp[0], gp[1].length, 6) + gp[1].sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).map(function (r) {
+      var s = state(r), ls = (lotsBy[r.name] || []).slice().sort(function (a, b) { return String(a.expires || '9999').localeCompare(String(b.expires || '9999')); });
+      var inLots = ls.reduce(function (t, l) { return t + Number(l.left_qty || 0); }, 0), mis = Math.abs(inLots - Number(r.stock || 0)) > 0.009 && can('lots');
+      return '<tr class="click" data-fg="' + r.id + '"><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.unit) + '</td><td class="n"><b>' + num(r.stock) + '</b>' + (mis ? '<br><span class="pill r">lots ' + num(inLots) + '</span>' : '') + '</td>' +
+        '<td>' + (ls.length ? ls.map(function (l) { return esc(l.lot) + ': ' + num(l.left_qty) + (l.expires ? ' (exp ' + esc(String(l.expires).slice(5)) + ')' : ''); }).join(', ') : '<span class="mut">-</span>') + '</td>' +
+        '<td class="n">' + (Number(r.par) ? num(r.par) : '-') + '</td><td><span class="pill ' + ({out: 'r', low: 'o', ok: 'g'})[s] + '">' + ({out: 'OUT OF STOCK', low: 'RUNNING LOW', ok: 'OK'})[s] + '</span></td></tr>'; }).join('');
+  }).join('');
+  $('main').innerHTML = head('Inventory', 'Finished Goods', (can('lots') || can('finished')) ? '<button class="btn" id="la-new">+ Count / adjust by LOT</button>' : '') +
+    '<div class="kpis">' + kpi('Products', String(fg.length), '') + kpi('Running low', String(counts.low), '', 'finished', 'low') + kpi('Out of stock', String(counts.out), '', 'finished', 'out') + '</div>' +
+    '<div class="card"><div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="chips">' +
+    [['', 'All'], ['low', 'Running low'], ['out', 'Out of stock']].map(function (c) { return '<span class="chip' + (f === c[0] ? ' on' : '') + '" data-ff="' + c[0] + '">' + c[1] + '</span>'; }).join('') +
+    '</div><input class="search" id="q" placeholder="Search product" value="' + esc(V.q) + '"></div>' +
+    '<table><tr><th>Product</th><th>Unit</th><th class="n">Stock</th><th>In its lots (send first)</th><th class="n">Par</th><th>Status</th></tr>' + (body || '<tr><td colspan="6" class="empty">Nothing matches.</td></tr>') + '</table>' +
+    '<div class="mut" style="margin-top:10px">Grouped OURS / CUSTOM by the Standardized Recipes category, as on the desktop. Click a product to count or adjust it by LOT.</div></div>';
+  document.querySelectorAll('[data-ff]').forEach(function (el) { el.onclick = function () { go('finished', el.getAttribute('data-ff')); }; });
+  document.querySelectorAll('[data-fg]').forEach(function (tr) { tr.onclick = function () { if (can('lots') || can('finished')) openLotAdjust(tr.getAttribute('data-fg')); }; });
+  if ($('la-new')) $('la-new').onclick = function () { openLotAdjust(''); };
+  var qi = $('q'), t = null;
+  qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { V.q = qi.value; var pos = qi.value.length; go('finished', V.arg).then(function () { var n = $('q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); }, 300); };
 }
 
 /* ---------------------------------------------------------------- phone screens */
