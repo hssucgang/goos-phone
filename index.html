@@ -148,7 +148,7 @@ a.tel{color:var(--navy)}
 <div id="app"></div><div id="sheet"></div><div id="print"></div>
 <script>
 'use strict';
-var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.171'};
+var CFG = {url: 'https://gfgavltifdkyzvmhyyim.supabase.co', key: 'sb_publishable_CQ1ChWjD5ZPNlZZXCK71FA_704f-xRp', version: '3.99.193'};
 /* 3.99.161 - opened INSIDE GOOS Web (desk.html?embed=1&v=quotes): the web
    gives the menu and sign-in, so this copy hides its own menu, opens the
    screen asked for, and leaves the browser's Back button alone. */
@@ -247,6 +247,12 @@ async function signIn() {
     var h = await pbkdf2Hex(p, String(salt));
     var r = await rpc('goos_m_login', {p_user: u, p_hash: h});
     if (!r.ok) { $('err').textContent = r.error; $('go').disabled = false; return; }
+    if (r.need_code) {
+      /* 3.99.190 - two-step sign-in */
+      var c = (prompt('Two-step sign-in: type the 6-digit code from your authenticator app (Grain Ola GOOS).') || '').replace(/\D/g, '');
+      r = await rpc('goos_m_code', {p_token: r.token, p_code: c});
+      if (!r.ok) { $('err').textContent = r.error === 'signin' ? 'Please sign in again.' : r.error; $('go').disabled = false; return; }
+    }
     S.token = r.token; S.name = r.name; S.user = u; S.views = r.views; save();
     go('dashboard');
   } catch (e) {
